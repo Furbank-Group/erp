@@ -43,6 +43,7 @@ export async function getSuperAdminDashboardStats(): Promise<{
       return { data: null, error: new Error('Not authenticated') };
     }
 
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { data, error } = await supabase.rpc('get_dashboard_stats_super_admin', {
       p_user_id: user.id,
     });
@@ -100,6 +101,7 @@ export async function getAdminDashboardStats(): Promise<{
       return { data: null, error: new Error('Not authenticated') };
     }
 
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { data, error } = await supabase.rpc('get_dashboard_stats_admin', {
       p_user_id: user.id,
     });
@@ -141,7 +143,7 @@ export async function getAdminDashboardStats(): Promise<{
 
       if (!tasksError && tasksData) {
         // Preserve order from RPC result
-        const taskMap = new Map(tasksData.map((t) => [t.id, t]));
+        const taskMap = new Map((tasksData as any).map((t: any) => [t.id, t]));
         recentlyUpdatedTasks = stats.recently_updated_tasks
           .map((t) => taskMap.get(t.id))
           .filter((t): t is Task => t !== undefined);
@@ -180,9 +182,10 @@ export async function getStaffDashboardStats(): Promise<{
     }
 
     // Try RPC function first
-    const { data, error } = await supabase.rpc('get_dashboard_stats_staff', {
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data, error } = await (supabase.rpc('get_dashboard_stats_staff', {
       p_user_id: user.id,
-    });
+    }) as any);
 
     // If function doesn't exist (migrations not run) or user doesn't exist in users table, fall back to direct queries
     if (error) {

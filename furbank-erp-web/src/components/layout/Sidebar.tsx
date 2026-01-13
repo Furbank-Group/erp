@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
-  const { appUser, signOut, permissions, role } = useAuth();
+  const { appUser, signOut, permissions } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;

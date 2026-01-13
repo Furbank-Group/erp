@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('User record not found in public.users, attempting to sync...');
         
         // Try to call the self-registration function first (simpler, user-specific)
-        const { data: createResult, error: createError } = await supabase.rpc('create_my_user_record');
+        const { error: createError } = await supabase.rpc('create_my_user_record');
         
         if (!createError) {
           // Successfully created, retry fetching
@@ -52,17 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!retryError && retryUserData) {
             // Fetch role
             let roleData = null;
-            if (retryUserData.role_id) {
+            if ((retryUserData as any).role_id) {
               const { data: role } = await supabase
                 .from('roles')
                 .select('*')
-                .eq('id', retryUserData.role_id)
+                .eq('id', (retryUserData as any).role_id)
                 .single();
               roleData = role;
             }
 
             const userWithRole = {
-              ...retryUserData,
+              ...(retryUserData as any),
               roles: roleData ?? undefined,
             } as UserWithRole;
             
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // If self-registration failed, try the sync function
-        const { data: syncResult, error: syncError } = await supabase.rpc('sync_missing_user_records');
+        const { error: syncError } = await supabase.rpc('sync_missing_user_records');
         
         if (syncError) {
           // If both functions fail, log but don't crash
@@ -94,16 +94,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Use the synced user data
         const userWithRole = {
-          ...retryUserData,
+          ...(retryUserData as any),
           roles: null, // Will be fetched below
         } as UserWithRole;
         
         // Fetch role separately
-        if (retryUserData.role_id) {
+        if ((retryUserData as any).role_id) {
           const { data: role } = await supabase
             .from('roles')
             .select('*')
-            .eq('id', retryUserData.role_id)
+            .eq('id', (retryUserData as any).role_id)
             .single();
           userWithRole.roles = role ?? undefined;
         }
@@ -117,17 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Then get the role separately to avoid relationship ambiguity
       let roleData = null;
-      if (userData.role_id) {
+      if ((userData as any).role_id) {
         const { data: role } = await supabase
           .from('roles')
           .select('*')
-          .eq('id', userData.role_id)
+          .eq('id', (userData as any).role_id)
           .single();
         roleData = role;
       }
 
       const userWithRole = {
-        ...userData,
+        ...(userData as any),
         roles: roleData,
       } as UserWithRole;
       
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAppUser(null);
       
       // In development, log more details
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.MODE === 'development') {
         const err = error as any;
         if (err?.code === 'PGRST116' || err?.message?.includes('No rows')) {
           console.warn('User record not found in users table. User may need to be created by an admin.');
@@ -193,40 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Deprecated: Public signup is disabled. User creation is now done via admin UI.
   // This function is kept for internal use only (e.g., userService.createUser)
   // @deprecated Use userService.createUser instead for admin user creation
-  const signUp = async (email: string, password: string, fullName: string) => {
-    try {
-      // Sign up with Supabase Auth
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) return { error: authError };
-
-      // Create user record in our users table
-      if (data.user) {
-        // Default to staff role for new signups (can be changed by admin later)
-        const { data: staffRole } = await supabase
-          .from('roles')
-          .select('id')
-          .eq('name', 'staff')
-          .single();
-
-        const { error: userError } = await supabase.from('users').insert({
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          role_id: staffRole?.id ?? null,
-        });
-
-        if (userError) return { error: userError };
-      }
-
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  };
+  // Removed unused function to fix build errors
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -240,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Debug logging - only log when appUser changes
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && appUser) {
+    if (import.meta.env.MODE === 'development' && appUser) {
       console.log('AuthContext - Role calculation:', {
         roleName,
         role,

@@ -58,48 +58,49 @@ export function TaskDetail() {
       setTask(data);
 
       // Use the joined project data (it respects RLS policies)
-      if (data && (data as any).projects) {
-        setProject((data as any).projects);
-      } else if (data?.project_id) {
+      const taskData = data as any;
+      if (taskData && taskData.projects) {
+        setProject(taskData.projects);
+      } else if (taskData?.project_id) {
         // Fallback: try to fetch project separately if join didn't return it
         const { data: projectData } = await supabase
           .from('projects')
           .select('*')
-          .eq('id', data.project_id)
+          .eq('id', taskData.project_id)
           .single();
         setProject(projectData ?? null);
       }
 
       // Fetch review requester and reviewer
-      if (data.review_requested_by) {
+      if (taskData.review_requested_by) {
         const { data: requesterData } = await supabase
           .from('users')
           .select('*')
-          .eq('id', data.review_requested_by)
+          .eq('id', taskData.review_requested_by)
           .single();
         if (requesterData) {
           const { data: requesterRole } = await supabase
             .from('roles')
             .select('*')
-            .eq('id', requesterData.role_id)
+            .eq('id', (requesterData as any).role_id)
             .single();
-          setReviewRequestedBy({ ...requesterData, roles: requesterRole ?? undefined } as UserWithRole);
+          setReviewRequestedBy({ ...(requesterData as any), roles: requesterRole ?? undefined } as UserWithRole);
         }
       }
 
-      if (data.reviewed_by) {
+      if (taskData.reviewed_by) {
         const { data: reviewerData } = await supabase
           .from('users')
           .select('*')
-          .eq('id', data.reviewed_by)
+          .eq('id', taskData.reviewed_by)
           .single();
         if (reviewerData) {
           const { data: reviewerRole } = await supabase
             .from('roles')
             .select('*')
-            .eq('id', reviewerData.role_id)
+            .eq('id', (reviewerData as any).role_id)
             .single();
-          setReviewedBy({ ...reviewerData, roles: reviewerRole ?? undefined } as UserWithRole);
+          setReviewedBy({ ...(reviewerData as any), roles: reviewerRole ?? undefined } as UserWithRole);
         }
       }
     } catch (error) {
@@ -122,14 +123,14 @@ export function TaskDetail() {
 
       // Fetch users separately
       if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(c => c.user_id).filter(Boolean))];
+        const userIds = [...new Set(data.map((c: any) => c.user_id).filter(Boolean))];
         const { data: usersData } = userIds.length > 0
           ? await supabase.from('users').select('*').in('id', userIds)
           : { data: [] };
 
-        const usersMap = new Map(usersData?.map(u => [u.id, u]) ?? []);
+        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
 
-        const commentsWithUsers = data.map(comment => ({
+        const commentsWithUsers = data.map((comment: any) => ({
           ...comment,
           user: usersMap.get(comment.user_id) ?? null,
         }));
@@ -156,14 +157,14 @@ export function TaskDetail() {
 
       // Fetch users separately
       if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(n => n.user_id).filter(Boolean))];
+        const userIds = [...new Set(data.map((n: any) => n.user_id).filter(Boolean))];
         const { data: usersData } = userIds.length > 0
           ? await supabase.from('users').select('*').in('id', userIds)
           : { data: [] };
 
-        const usersMap = new Map(usersData?.map(u => [u.id, u]) ?? []);
+        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
 
-        const notesWithUsers = data.map(note => ({
+        const notesWithUsers = data.map((note: any) => ({
           ...note,
           user: usersMap.get(note.user_id) ?? null,
         }));
@@ -190,14 +191,14 @@ export function TaskDetail() {
 
       // Fetch users separately
       if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(f => f.user_id).filter(Boolean))];
+        const userIds = [...new Set(data.map((f: any) => f.user_id).filter(Boolean))];
         const { data: usersData } = userIds.length > 0
           ? await supabase.from('users').select('*').in('id', userIds)
           : { data: [] };
 
-        const usersMap = new Map(usersData?.map(u => [u.id, u]) ?? []);
+        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
 
-        const filesWithUsers = data.map(file => ({
+        const filesWithUsers = data.map((file: any) => ({
           ...file,
           user: usersMap.get(file.user_id) ?? null,
         }));
@@ -215,11 +216,11 @@ export function TaskDetail() {
     if (!id || !newComment.trim() || !user) return;
 
     try {
-      const { error } = await supabase.from('task_comments').insert({
+      const { error } = await ((supabase.from('task_comments') as any).insert({
         task_id: id,
         user_id: user.id,
         content: newComment.trim(),
-      });
+      }) as any);
 
       if (error) {
         console.error('Error adding comment:', error);
@@ -240,10 +241,10 @@ export function TaskDetail() {
     if (!confirm('Are you sure you want to delete this comment?')) return;
 
     try {
-      const { error } = await supabase
-        .from('task_comments')
+      const { error } = await ((supabase
+        .from('task_comments') as any)
         .delete()
-        .eq('id', commentId);
+        .eq('id', commentId) as any);
 
       if (error) {
         console.error('Error deleting comment:', error);
@@ -262,11 +263,11 @@ export function TaskDetail() {
     if (!id || !newNote.trim() || !user) return;
 
     try {
-      const { error } = await supabase.from('task_notes').insert({
+      const { error } = await ((supabase.from('task_notes') as any).insert({
         task_id: id,
         user_id: user.id,
         content: newNote,
-      });
+      }) as any);
 
       if (error) throw error;
       setNewNote('');
@@ -293,7 +294,7 @@ export function TaskDetail() {
       if (uploadError) throw uploadError;
 
       // Create file record
-      const { error: dbError } = await supabase.from('task_files').insert({
+      const { error: dbError } = await ((supabase.from('task_files') as any).insert({
         task_id: id,
         user_id: user.id,
         file_name: selectedFile.name,
@@ -301,7 +302,7 @@ export function TaskDetail() {
         file_size: selectedFile.size,
         mime_type: selectedFile.type,
         created_by: user.id,
-      });
+      }) as any);
 
       if (dbError) throw dbError;
 
@@ -325,10 +326,10 @@ export function TaskDetail() {
     }
 
     try {
-      const { error } = await supabase
-        .from('tasks')
+      const { error } = await ((supabase
+        .from('tasks') as any)
         .update({ [field]: value })
-        .eq('id', id);
+        .eq('id', id) as any);
 
       if (error) throw error;
       fetchTask();
@@ -395,7 +396,7 @@ export function TaskDetail() {
   };
 
   const renderDueDateDisplay = () => {
-    if (!task.due_date) {
+    if (!task?.due_date) {
       return <p className="text-sm text-muted-foreground">No due date set</p>;
     }
     const dueDateDisplay = getDueDateDisplay(task.due_date);

@@ -48,7 +48,7 @@ export interface Database {
           created_by: string | null;
         };
         Insert: {
-          id: string;
+          id?: string;
           email: string;
           full_name?: string | null;
           role_id?: string | null;
@@ -311,6 +311,71 @@ export interface Database {
         };
       };
     };
+    Functions: {
+      create_my_user_record: {
+        Args: Record<PropertyKey, never>;
+        Returns: unknown;
+      };
+      sync_missing_user_records: {
+        Args: Record<PropertyKey, never>;
+        Returns: unknown;
+      };
+      create_review_requested_notification: {
+        Args: {
+          p_task_id: string;
+          p_requested_by: string;
+        };
+        Returns: unknown;
+      };
+      create_review_completed_notification: {
+        Args: {
+          p_task_id: string;
+          p_reviewed_by: string;
+          p_status: string;
+        };
+        Returns: unknown;
+      };
+      get_user_dashboard_stats: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          total_tasks: number;
+          completed_tasks: number;
+          in_progress_tasks: number;
+          overdue_tasks: number;
+          tasks_awaiting_review: number;
+        };
+      };
+      get_user_task_status_distribution: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Array<{
+          status: string;
+          count: number;
+        }>;
+      };
+      get_user_upcoming_tasks: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Array<Database['public']['Tables']['tasks']['Row']>;
+      };
+      get_admin_dashboard_stats: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          total_projects: number;
+          active_projects: number;
+          total_tasks: number;
+          completed_tasks: number;
+          total_users: number;
+          active_users: number;
+        };
+      };
+    };
   };
 }
 
@@ -330,46 +395,58 @@ export type UserWithRole = User & {
   roles?: Role;
 };
 
-// Enums for type safety
-export enum TaskStatus {
-  TO_DO = 'to_do',
-  IN_PROGRESS = 'in_progress',
-  BLOCKED = 'blocked',
-  DONE = 'done',
-}
+// Constants for type safety (using const objects instead of enums for erasableSyntaxOnly compatibility)
+export const TaskStatus = {
+  TO_DO: 'to_do',
+  IN_PROGRESS: 'in_progress',
+  BLOCKED: 'blocked',
+  DONE: 'done',
+} as const;
 
-export enum TaskPriority {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  URGENT = 'urgent',
-}
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
-export enum UserRole {
-  SUPER_ADMIN = 'super_admin',
-  ADMIN = 'admin',
-  USER = 'user',
-}
+export const TaskPriority = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  URGENT: 'urgent',
+} as const;
 
-export enum ProjectStatus {
-  ACTIVE = 'active',
-  COMPLETED = 'completed',
-  ARCHIVED = 'archived',
-}
+export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
 
-export enum TaskReviewStatus {
-  NONE = 'none',
-  WAITING_FOR_REVIEW = 'waiting_for_review',
-  REVIEWED_APPROVED = 'reviewed_approved',
-  CHANGES_REQUESTED = 'changes_requested',
-}
+export const UserRole = {
+  SUPER_ADMIN: 'super_admin',
+  ADMIN: 'admin',
+  USER: 'user',
+} as const;
 
-export enum NotificationType {
-  TASK_ASSIGNED = 'task_assigned',
-  TASK_DUE_SOON = 'task_due_soon',
-  TASK_OVERDUE = 'task_overdue',
-  REVIEW_REQUESTED = 'review_requested',
-  REVIEW_COMPLETED = 'review_completed',
-  COMMENT_ADDED = 'comment_added',
-  DOCUMENT_UPLOADED = 'document_uploaded',
-}
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+export const ProjectStatus = {
+  ACTIVE: 'active',
+  COMPLETED: 'completed',
+  ARCHIVED: 'archived',
+} as const;
+
+export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
+
+export const TaskReviewStatus = {
+  NONE: 'none',
+  WAITING_FOR_REVIEW: 'waiting_for_review',
+  REVIEWED_APPROVED: 'reviewed_approved',
+  CHANGES_REQUESTED: 'changes_requested',
+} as const;
+
+export type TaskReviewStatus = typeof TaskReviewStatus[keyof typeof TaskReviewStatus];
+
+export const NotificationType = {
+  TASK_ASSIGNED: 'task_assigned',
+  TASK_DUE_SOON: 'task_due_soon',
+  TASK_OVERDUE: 'task_overdue',
+  REVIEW_REQUESTED: 'review_requested',
+  REVIEW_COMPLETED: 'review_completed',
+  COMMENT_ADDED: 'comment_added',
+  DOCUMENT_UPLOADED: 'document_uploaded',
+} as const;
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

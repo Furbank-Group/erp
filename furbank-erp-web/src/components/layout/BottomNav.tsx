@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export function BottomNav() {
-  const { permissions, role } = useAuth();
+  const { permissions } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;

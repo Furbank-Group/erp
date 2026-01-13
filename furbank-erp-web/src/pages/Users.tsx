@@ -10,7 +10,8 @@ import {
   type CreateUserResult,
   type ResetPasswordResult 
 } from '@/lib/services/userService';
-import type { UserWithRole, UserRole } from '@/lib/supabase/types';
+import type { UserWithRole } from '@/lib/supabase/types';
+import { UserRole } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -94,7 +95,7 @@ export function Users() {
       setFormData({
         email: '',
         fullName: '',
-        role: 'user',
+        role: UserRole.USER,
         password: '',
         generatePassword: true,
       });

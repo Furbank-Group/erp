@@ -98,7 +98,7 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     
     // Try to use Edge Function if available (better approach)
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    let { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+    let { data: { session: currentSession } } = await supabase.auth.getSession();
     
     if (currentSession && supabaseUrl) {
       // Refresh the session to ensure we have a valid token
@@ -201,14 +201,14 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     }
     
     // Create user record in public.users table
-    const { error: userError } = await supabase.from('users').insert({
+    const { error: userError } = await ((supabase.from('users') as any).insert({
       id: authData.user.id,
       email,
       full_name: fullName,
-      role_id: roleData.id,
+      role_id: (roleData as any).id,
       is_active: true,
       created_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-    });
+    }) as any);
     
     if (userError) {
       // If user record creation fails, check if it's a duplicate (user already exists)
@@ -221,7 +221,7 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
         console.error('Failed to create user record:', userError);
         
         // Try to use the self-registration function as fallback
-        const { error: fallbackError } = await supabase.rpc('create_my_user_record');
+        const { error: fallbackError } = await (supabase.rpc('create_my_user_record') as any);
         if (fallbackError) {
           throw new Error(`Failed to create user record: ${(userError as any).message ?? 'Unknown error'}. The user was created in authentication but the database record creation failed.`);
         }
@@ -263,7 +263,7 @@ export async function getAllUsers() {
   }
 
   // Get unique role IDs
-  const roleIds = [...new Set(users.map(u => u.role_id).filter(Boolean))];
+    const roleIds = [...new Set(users.map((u: any) => (u as any).role_id).filter(Boolean))];
   
   // Fetch roles separately
   let rolesMap = new Map();
@@ -277,14 +277,14 @@ export async function getAllUsers() {
       console.warn('Error fetching roles:', rolesError);
       // Don't throw - continue without roles
     } else if (roles) {
-      rolesMap = new Map(roles.map(r => [r.id, r]));
+      rolesMap = new Map((roles as any).map((r: any) => [r.id, r]));
     }
   }
 
   // Combine users with their roles
-  return users.map(user => ({
+  return users.map((user: any) => ({
     ...user,
-    roles: user.role_id ? rolesMap.get(user.role_id) ?? null : null,
+    roles: (user as any).role_id ? rolesMap.get((user as any).role_id) ?? null : null,
   }));
 }
 
@@ -303,10 +303,10 @@ export async function updateUserRole(userId: string, role: UserRole) {
     throw new Error(`Role '${role}' not found`);
   }
   
-  const { error } = await supabase
-    .from('users')
-    .update({ role_id: roleData.id })
-    .eq('id', userId);
+  const { error } = await ((supabase
+    .from('users') as any)
+    .update({ role_id: (roleData as any).id })
+    .eq('id', userId) as any);
   
   if (error) {
     throw error;
@@ -317,10 +317,10 @@ export async function updateUserRole(userId: string, role: UserRole) {
  * Toggle user active status (admin only)
  */
 export async function toggleUserStatus(userId: string, isActive: boolean) {
-  const { error } = await supabase
-    .from('users')
+  const { error } = await ((supabase
+    .from('users') as any)
     .update({ is_active: isActive })
-    .eq('id', userId);
+    .eq('id', userId) as any);
   
   if (error) {
     throw error;
@@ -368,14 +368,14 @@ export async function updateUser(params: UpdateUserParams): Promise<{ error: Err
         return { error: new Error(`Role '${role}' not found`) };
       }
 
-      updateData.role_id = roleData.id;
+      updateData.role_id = (roleData as any).id;
     }
 
     // Update user record
-    const { error: updateError } = await supabase
-      .from('users')
+    const { error: updateError } = await ((supabase
+      .from('users') as any)
       .update(updateData)
-      .eq('id', userId);
+      .eq('id', userId) as any);
 
     if (updateError) {
       return { error: updateError as Error };
@@ -408,18 +408,18 @@ export interface ResetPasswordResult {
 export async function resetUserPassword(userId: string): Promise<ResetPasswordResult> {
   try {
     // Verify user exists
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('email')
-      .eq('id', userId)
-      .single();
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .single();
 
     if (userError || !user) {
       return { password: '', error: new Error('User not found') };
     }
 
     // Get the current session for authorization and refresh if needed
-    let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    let { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
       return { password: '', error: new Error('Not authenticated') };

@@ -15,19 +15,20 @@ export async function requestReview(
 ): Promise<{ error: Error | null }> {
   try {
     // Update task review status
-    const { error: updateError } = await supabase
-      .from('tasks')
+    const { error: updateError } = await ((supabase
+      .from('tasks') as any)
       .update({
         review_status: TaskReviewStatus.WAITING_FOR_REVIEW,
         review_requested_by: userId,
       })
-      .eq('id', taskId);
+      .eq('id', taskId) as any);
 
     if (updateError) {
       return { error: updateError as Error };
     }
 
     // Trigger notification via database function
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { error: notifyError } = await supabase.rpc('create_review_requested_notification', {
       p_task_id: taskId,
       p_requested_by: userId,
@@ -54,21 +55,22 @@ export async function approveTask(
 ): Promise<{ error: Error | null }> {
   try {
     // Update task review status
-    const { error: updateError } = await supabase
-      .from('tasks')
+    const { error: updateError } = await ((supabase
+      .from('tasks') as any)
       .update({
         review_status: TaskReviewStatus.REVIEWED_APPROVED,
         reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
         review_comments: comments ?? null,
       })
-      .eq('id', taskId);
+      .eq('id', taskId) as any);
 
     if (updateError) {
       return { error: updateError as Error };
     }
 
     // Trigger notification via database function
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { error: notifyError } = await supabase.rpc('create_review_completed_notification', {
       p_task_id: taskId,
       p_reviewed_by: userId,
@@ -100,21 +102,22 @@ export async function requestChanges(
     }
 
     // Update task review status
-    const { error: updateError } = await supabase
-      .from('tasks')
+    const { error: updateError } = await ((supabase
+      .from('tasks') as any)
       .update({
         review_status: TaskReviewStatus.CHANGES_REQUESTED,
         reviewed_by: userId,
         reviewed_at: new Date().toISOString(),
         review_comments: comments,
       })
-      .eq('id', taskId);
+      .eq('id', taskId) as any);
 
     if (updateError) {
       return { error: updateError as Error };
     }
 
     // Trigger notification via database function
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { error: notifyError } = await supabase.rpc('create_review_completed_notification', {
       p_task_id: taskId,
       p_reviewed_by: userId,
@@ -137,8 +140,8 @@ export async function requestChanges(
  */
 export async function resetReviewStatus(taskId: string): Promise<{ error: Error | null }> {
   try {
-    const { error } = await supabase
-      .from('tasks')
+    const { error } = await ((supabase
+      .from('tasks') as any)
       .update({
         review_status: TaskReviewStatus.NONE,
         review_requested_by: null,
@@ -146,7 +149,7 @@ export async function resetReviewStatus(taskId: string): Promise<{ error: Error 
         reviewed_at: null,
         review_comments: null,
       })
-      .eq('id', taskId);
+      .eq('id', taskId) as any);
 
     if (error) {
       return { error: error as Error };

@@ -82,13 +82,13 @@ export async function getUnreadCount(userId: string): Promise<{ count: number; e
  */
 export async function markAsRead(notificationId: string): Promise<{ error: Error | null }> {
   try {
-    const { error } = await supabase
-      .from('notifications')
+    const { error } = await ((supabase
+      .from('notifications') as any)
       .update({
         is_read: true,
         read_at: new Date().toISOString(),
       })
-      .eq('id', notificationId);
+      .eq('id', notificationId) as any);
 
     if (error) {
       return { error: error as Error };
@@ -105,14 +105,13 @@ export async function markAsRead(notificationId: string): Promise<{ error: Error
  */
 export async function markAllAsRead(userId: string): Promise<{ error: Error | null }> {
   try {
-    const { error } = await supabase
-      .from('notifications')
+    const { error } = await ((supabase
+      .from('notifications') as any)
       .update({
         is_read: true,
         read_at: new Date().toISOString(),
       })
-      .eq('recipient_user_id', userId)
-      .eq('is_read', false);
+      .eq('recipient_user_id', userId) as any);
 
     if (error) {
       return { error: error as Error };

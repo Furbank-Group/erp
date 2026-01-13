@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
 
 export function Dashboard() {
-  const { user, role, permissions } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);

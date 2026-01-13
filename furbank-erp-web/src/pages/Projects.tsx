@@ -45,6 +45,7 @@ export function Projects() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
       const { error } = await supabase.from('projects').insert({
         name: formData.name,
         description: formData.description || null,

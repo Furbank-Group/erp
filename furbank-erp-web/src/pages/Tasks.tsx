@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
+
+type AppUser = UserWithRole;
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,8 +32,8 @@ export function Tasks() {
     project_id: '',
     assigned_to: '',
     due_date: '',
-    priority: TaskPriority.MEDIUM,
-    status: TaskStatus.TO_DO,
+    priority: 'medium' as TaskPriority,
+    status: 'to_do' as TaskStatus,
   });
 
   useEffect(() => {
@@ -63,14 +65,14 @@ export function Tasks() {
       
       // Use joined project data from the query, and fetch users separately
       if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(t => t.assigned_to).filter(Boolean))];
+        const userIds = [...new Set(data.map((t: any) => t.assigned_to).filter(Boolean))];
         
         // Fetch assigned users separately
         const usersResult = userIds.length > 0
           ? await supabase.from('users').select('*').in('id', userIds)
           : { data: [] };
         
-        const usersMap = new Map(usersResult.data?.map(u => [u.id, u]) ?? []);
+        const usersMap = new Map((usersResult.data as any)?.map((u: any) => [u.id, u]) ?? []);
         
         // Use the joined project data from the query (it respects RLS policies)
         const tasksWithRelations = data.map((task: any) => ({
@@ -128,6 +130,7 @@ export function Tasks() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('Not authenticated');
 
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
       const { error } = await supabase.from('tasks').insert({
         title: formData.title,
         description: formData.description || null,
