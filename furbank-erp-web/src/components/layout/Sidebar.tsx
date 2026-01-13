@@ -1,18 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { 
   LayoutDashboard, 
   FolderKanban, 
   CheckSquare, 
   Users, 
   BarChart3,
-  LogOut 
+  LogOut,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const { signOut, permissions } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -96,8 +100,25 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Sign out */}
-        <div className="px-4 py-4 border-t">
+        {/* Dark mode toggle and sign out */}
+        <div className="px-4 py-4 border-t space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3"
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="h-4 w-4" />
+                <span>Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-4 w-4" />
+                <span>Dark Mode</span>
+              </>
+            )}
+          </Button>
           <Button
             variant="ghost"
             className="w-full justify-start gap-3"
