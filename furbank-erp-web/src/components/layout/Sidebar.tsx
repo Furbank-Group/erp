@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export function Sidebar() {
-  const { appUser, signOut, permissions } = useAuth();
+  const { signOut, permissions } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -96,16 +96,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* User info and sign out */}
-        <div className="px-4 py-4 border-t space-y-2">
-          <div className="px-3 py-2 text-sm">
-            <p className="font-medium text-foreground">
-              {appUser?.full_name ?? 'User'}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {appUser?.email}
-            </p>
-          </div>
+        {/* Sign out */}
+        <div className="px-4 py-4 border-t">
           <Button
             variant="ghost"
             className="w-full justify-start gap-3"
