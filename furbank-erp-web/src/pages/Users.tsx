@@ -1,0 +1,578 @@
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  createUser, 
+  getAllUsers, 
+  updateUserRole, 
+  toggleUserStatus, 
+  updateUser,
+  resetUserPassword,
+  type CreateUserResult,
+  type ResetPasswordResult 
+} from '@/lib/services/userService';
+import type { UserWithRole, UserRole } from '@/lib/supabase/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Edit, Key, X, Save } from 'lucide-react';
+
+export function Users() {
+  const { permissions } = useAuth();
+  const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<CreateUserResult | null>(null);
+  const [formData, setFormData] = useState({
+    email: '',
+    fullName: '',
+    role: 'user' as UserRole,
+    password: '',
+    generatePassword: true,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<{
+    email: string;
+    fullName: string;
+    role: UserRole;
+  } | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [resetPasswordResult, setResetPasswordResult] = useState<ResetPasswordResult | null>(null);
+
+  useEffect(() => {
+    if (permissions.canViewAllUsers) {
+      fetchUsers();
+    }
+  }, [permissions.canViewAllUsers]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getAllUsers();
+      setUsers((data as UserWithRole[]) ?? []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load users';
+      setError(`Failed to load users: ${errorMessage}`);
+      
+      // If it's an RLS/permission error, provide helpful message
+      if (errorMessage.includes('permission') || errorMessage.includes('policy') || errorMessage.includes('403')) {
+        setError('Permission denied. Please ensure your role is set correctly and RLS policies are configured.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!permissions.canViewAllUsers) return;
+
+    setError(null);
+    setCreating(true);
+
+    try {
+      const result = await createUser({
+        email: formData.email,
+        fullName: formData.fullName,
+        role: formData.role,
+        password: formData.generatePassword ? undefined : formData.password,
+      });
+
+      if (result.error) {
+        setError(result.error.message);
+        setCreating(false);
+        return;
+      }
+
+      // Show credentials to admin
+      setCreatedCredentials(result);
+      setFormData({
+        email: '',
+        fullName: '',
+        role: 'user',
+        password: '',
+        generatePassword: true,
+      });
+      setShowCreateForm(false);
+      
+      // Refresh user list
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create user');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    try {
+      await updateUserRole(userId, newRole);
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      alert('Failed to update user role');
+    }
+  };
+
+  const handleStatusToggle = async (userId: string, currentStatus: boolean) => {
+    try {
+      await toggleUserStatus(userId, !currentStatus);
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      alert('Failed to update user status');
+    }
+  };
+
+  const handleEditUser = (user: UserWithRole) => {
+    const role = (user as any).roles as { name: string } | null;
+    setEditingUserId(user.id);
+    setEditFormData({
+      email: user.email,
+      fullName: user.full_name ?? '',
+      role: (role?.name as UserRole) ?? 'user',
+    });
+    setError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUserId(null);
+    setEditFormData(null);
+    setError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUserId || !editFormData) return;
+
+    try {
+      setError(null);
+      const { error: updateError } = await updateUser({
+        userId: editingUserId,
+        email: editFormData.email,
+        fullName: editFormData.fullName,
+        role: editFormData.role,
+      });
+
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+
+      setEditingUserId(null);
+      setEditFormData(null);
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update user');
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!confirm('Are you sure you want to reset this user\'s password? A new password will be generated.')) {
+      return;
+    }
+
+    try {
+      setResettingPassword(userId);
+      setError(null);
+      setResetPasswordResult(null); // Clear previous result
+      const result = await resetUserPassword(userId);
+
+      console.log('Password reset result:', result); // Debug log
+
+      // Always set the result if we have a password, even if there's an error
+      // (error might indicate Edge Function wasn't used, but password is still generated)
+      if (result.password) {
+        setResetPasswordResult(result);
+        // Scroll to the result card
+        setTimeout(() => {
+          const card = document.querySelector('[data-password-reset-card]');
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 100);
+      } else if (result.error) {
+        setError(result.error.message);
+      } else {
+        setError('Failed to generate password');
+      }
+
+      setResettingPassword(null);
+    } catch (err) {
+      console.error('Password reset error:', err); // Debug log
+      setError(err instanceof Error ? err.message : 'Failed to reset password');
+      setResettingPassword(null);
+    }
+  };
+
+  if (!permissions.canViewAllUsers) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">You don't have permission to view this page.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <div className="text-center py-8">Loading users...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">User Management</h1>
+        <Button onClick={() => {
+          setShowCreateForm(!showCreateForm);
+          setCreatedCredentials(null);
+          setError(null);
+        }}>
+          {showCreateForm ? 'Cancel' : 'Create User'}
+        </Button>
+      </div>
+
+      {createdCredentials && (
+        <Card className="border-2 border-primary">
+          <CardHeader>
+            <CardTitle>User Created Successfully</CardTitle>
+            <CardDescription>
+              Share these credentials with the user securely
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <Label>Email</Label>
+              <p className="font-mono text-sm bg-muted p-2 rounded">{createdCredentials.email}</p>
+            </div>
+            <div>
+              <Label>Password</Label>
+              <p className="font-mono text-sm bg-muted p-2 rounded">{createdCredentials.password}</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(
+                  `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`
+                );
+                alert('Credentials copied to clipboard');
+              }}
+            >
+              Copy Credentials
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setCreatedCredentials(null)}
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {resetPasswordResult && (
+        <Card className="border-2 border-primary" data-password-reset-card>
+          <CardHeader>
+            <CardTitle>Password Reset</CardTitle>
+            <CardDescription>
+              New password generated. Share this with the user securely.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <Label>New Password</Label>
+              {resetPasswordResult.password ? (
+                <p className="font-mono text-sm bg-muted p-2 rounded">{resetPasswordResult.password}</p>
+              ) : (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                  <p className="text-xs text-red-800 dark:text-red-200 font-medium">
+                    ⚠️ Password not generated. Check console for details.
+                  </p>
+                </div>
+              )}
+            </div>
+            {resetPasswordResult.error && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
+                <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium mb-1">
+                  ⚠️ Edge Function Issue
+                </p>
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  {resetPasswordResult.error.message}
+                </p>
+                {resetPasswordResult.error.message.includes('not reachable') && (
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
+                    To set this password manually, go to Supabase Dashboard → Authentication → Users → 
+                    Find the user → Click "Reset Password" or update manually.
+                  </p>
+                )}
+                {resetPasswordResult.error.message.includes('Edge Function error') && (
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-2">
+                    Check the browser console for more details. The password above was generated but may not be set in auth.users.
+                  </p>
+                )}
+              </div>
+            )}
+            {!resetPasswordResult.error && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
+                <p className="text-xs text-green-800 dark:text-green-200 font-medium">
+                  ✓ Password reset successfully via Edge Function
+                </p>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(resetPasswordResult.password);
+                  alert('Password copied to clipboard');
+                }}
+              >
+                Copy Password
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setResetPasswordResult(null)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showCreateForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New User</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="user@example.com"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  id="role"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="generatePassword"
+                    checked={formData.generatePassword}
+                    onChange={(e) => setFormData({ ...formData, generatePassword: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="generatePassword" className="cursor-pointer">
+                    Generate random password
+                  </Label>
+                </div>
+                {!formData.generatePassword && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Enter password"
+                      required={!formData.generatePassword}
+                      minLength={6}
+                    />
+                  </div>
+                )}
+              </div>
+              {error && (
+                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" disabled={creating}>
+                {creating ? 'Creating...' : 'Create User'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Users</CardTitle>
+          <CardDescription>
+            {users.length} user{users.length !== 1 ? 's' : ''} in the system
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {users.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No users found</p>
+          ) : (
+            <div className="space-y-4">
+              {users.map((user) => {
+                const role = (user as any).roles as { name: string; description: string } | null;
+                const isEditing = editingUserId === user.id;
+
+                return (
+                  <div
+                    key={user.id}
+                    className="p-4 border rounded-lg space-y-3"
+                  >
+                    {isEditing && editFormData ? (
+                      // Edit mode
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium">Edit User</h3>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              value={editFormData.email}
+                              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                              type="email"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Full Name</Label>
+                            <Input
+                              value={editFormData.fullName}
+                              onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Role</Label>
+                            <Select
+                              value={editFormData.role}
+                              onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as UserRole })}
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                              <option value="super_admin">Super Admin</option>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button onClick={handleSaveEdit} size="sm">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Changes
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View mode
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <p className="font-medium">{user.full_name ?? 'No name'}</p>
+                                <p className="text-sm text-muted-foreground">{user.email}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-1 text-xs rounded ${
+                                  role?.name === 'super_admin'
+                                    ? 'bg-gray-800 text-white'
+                                    : role?.name === 'admin'
+                                    ? 'bg-gray-600 text-white'
+                                    : 'bg-gray-200 text-gray-800'
+                                }`}>
+                                  {role?.name.replace('_', ' ').toUpperCase() ?? 'NO ROLE'}
+                                </span>
+                                <span className={`px-2 py-1 text-xs rounded ${
+                                  user.is_active
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {user.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditUser(user)}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResetPassword(user.id)}
+                              disabled={resettingPassword === user.id}
+                            >
+                              <Key className="h-4 w-4 mr-2" />
+                              {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
+                            </Button>
+                            <Select
+                              value={role?.name ?? ''}
+                              onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                              className="w-40"
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                              <option value="super_admin">Super Admin</option>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleStatusToggle(user.id, user.is_active)}
+                            >
+                              {user.is_active ? 'Deactivate' : 'Activate'}
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
