@@ -196,8 +196,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Removed unused function to fix build errors
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setAppUser(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        // Still clear local state even if there's an error
+      }
+      setAppUser(null);
+      setUser(null);
+      setSession(null);
+      // Force a page reload to ensure clean state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Clear local state even on error
+      setAppUser(null);
+      setUser(null);
+      setSession(null);
+      window.location.href = '/login';
+    }
   };
 
   // Get role name from appUser
