@@ -223,14 +223,17 @@ export function Users() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <Button onClick={() => {
-          setShowCreateForm(!showCreateForm);
-          setCreatedCredentials(null);
-          setError(null);
-        }}>
+    <div className="space-y-4 md:space-y-6 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">User Management</h1>
+        <Button 
+          onClick={() => {
+            setShowCreateForm(!showCreateForm);
+            setCreatedCredentials(null);
+            setError(null);
+          }}
+          className="w-full sm:w-auto"
+        >
           {showCreateForm ? 'Cancel' : 'Create User'}
         </Button>
       </div>
@@ -447,7 +450,7 @@ export function Users() {
                 return (
                   <div
                     key={user.id}
-                    className="p-4 border rounded-lg space-y-3"
+                    className="p-3 sm:p-4 border rounded-lg space-y-3"
                   >
                     {isEditing && editFormData ? (
                       // Edit mode
@@ -505,55 +508,62 @@ export function Users() {
                     ) : (
                       // View mode
                       <>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <p className="font-medium">{user.full_name ?? 'No name'}</p>
-                                <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm sm:text-base truncate">{user.full_name ?? 'No name'}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-1 text-xs rounded ${
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-1 text-xs rounded shrink-0 ${
                                   role?.name === 'super_admin'
-                                    ? 'bg-gray-800 text-white'
+                                    ? 'bg-gray-800 text-white dark:bg-gray-700'
                                     : role?.name === 'admin'
-                                    ? 'bg-gray-600 text-white'
-                                    : 'bg-gray-200 text-gray-800'
+                                    ? 'bg-gray-600 text-white dark:bg-gray-600'
+                                    : 'bg-gray-200 text-gray-800 dark:bg-gray-300'
                                 }`}>
                                   {role?.name.replace('_', ' ').toUpperCase() ?? 'NO ROLE'}
                                 </span>
-                                <span className={`px-2 py-1 text-xs rounded ${
+                                <span className={`px-2 py-1 text-xs rounded shrink-0 ${
                                   user.is_active
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                                 }`}>
                                   {user.is_active ? 'Active' : 'Inactive'}
                                 </span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditUser(user)}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleResetPassword(user.id)}
-                              disabled={resettingPassword === user.id}
-                            >
-                              <Key className="h-4 w-4 mr-2" />
-                              {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
-                            </Button>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditUser(user)}
+                                className="flex-1 sm:flex-initial"
+                              >
+                                <Edit className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleResetPassword(user.id)}
+                                disabled={resettingPassword === user.id}
+                                className="flex-1 sm:flex-initial"
+                              >
+                                <Key className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">
+                                  {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
+                                </span>
+                                <span className="sm:hidden">Reset</span>
+                              </Button>
+                            </div>
                             <Select
                               value={role?.name ?? ''}
                               onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                              className="w-48"
+                              className="w-full sm:w-48"
                             >
                               <option value="user">User (Staff)</option>
                               <option value="admin">Admin (Task Capturer)</option>
@@ -563,6 +573,7 @@ export function Users() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleStatusToggle(user.id, user.is_active)}
+                              className="w-full sm:w-auto"
                             >
                               {user.is_active ? 'Deactivate' : 'Activate'}
                             </Button>

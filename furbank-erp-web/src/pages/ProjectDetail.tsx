@@ -23,6 +23,7 @@ export function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<UserWithRole[]>([]);
+  const [assignedUsers, setAssignedUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
@@ -38,6 +39,7 @@ export function ProjectDetail() {
       fetchProject();
       fetchTasks();
       fetchMembers();
+      fetchAssignedUsers();
     }
   }, [id]);
 
@@ -117,6 +119,62 @@ export function ProjectDetail() {
       }
     } catch (error) {
       console.error('Error fetching members:', error);
+    }
+  };
+
+  const fetchAssignedUsers = async () => {
+    if (!id) return;
+    try {
+      // Get all tasks for this project
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('assigned_to')
+        .eq('project_id', id)
+        .not('assigned_to', 'is', null);
+
+      if (tasksError) throw tasksError;
+
+      if (tasksData && tasksData.length > 0) {
+        // Get unique user IDs from assigned_to
+        const userIds = [...new Set(tasksData.map((t: any) => t.assigned_to).filter(Boolean))];
+        
+        if (userIds.length > 0) {
+          // Fetch user details
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('*')
+            .in('id', userIds);
+
+          if (usersError) throw usersError;
+
+          // Fetch roles for each user
+          if (usersData && usersData.length > 0) {
+            const usersWithRoles = await Promise.all(
+              usersData.map(async (user: any) => {
+                if (user.role_id) {
+                  const { data: roleData } = await supabase
+                    .from('roles')
+                    .select('*')
+                    .eq('id', user.role_id)
+                    .single();
+                  return { ...user, roles: roleData ?? undefined } as UserWithRole;
+                }
+                return { ...user } as UserWithRole;
+              })
+            );
+            setAssignedUsers(usersWithRoles);
+          } else {
+            setAssignedUsers([]);
+          }
+        } else {
+          setAssignedUsers([]);
+        }
+      } else {
+        setAssignedUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching assigned users:', error);
+      setAssignedUsers([]);
     }
   };
 
@@ -439,6 +497,28 @@ export function ProjectDetail() {
                   {new Date(project.updated_at).toLocaleDateString()}
                 </p>
               </div>
+              {assignedUsers.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Assigned Users</p>
+                  <div className="space-y-2">
+                    {assignedUsers.map((user) => {
+                      const role = (user as any).roles as { name: string } | null;
+                      return (
+                        <div key={user.id} className="text-sm">
+                          <p className="font-medium truncate">
+                            {user.full_name ?? user.email ?? 'Unknown'}
+                          </p>
+                          {role && (
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {role.name.replace('_', ' ')}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

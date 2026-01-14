@@ -24,6 +24,8 @@ export function TaskDetail() {
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [notes, setNotes] = useState<TaskNote[]>([]);
   const [files, setFiles] = useState<TaskFile[]>([]);
+  const [assignedUser, setAssignedUser] = useState<UserWithRole | null>(null);
+  const [taskUsers, setTaskUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [newNote, setNewNote] = useState('');
@@ -41,6 +43,14 @@ export function TaskDetail() {
       fetchFiles();
     }
   }, [id]);
+
+  // Fetch task users when task, comments, notes, or files are loaded
+  useEffect(() => {
+    if (task && id) {
+      fetchTaskUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id, comments.length, notes.length, files.length, id]);
 
   const fetchTask = async () => {
     if (!id) return;
@@ -108,10 +118,95 @@ export function TaskDetail() {
           setReviewedBy({ ...(reviewerData as any), roles: reviewerRole ?? undefined } as UserWithRole);
         }
       }
+
+      // Fetch assigned user
+      if (taskData.assigned_to) {
+        const { data: assignedUserData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', taskData.assigned_to)
+          .single();
+        if (assignedUserData) {
+          const { data: assignedUserRole } = await supabase
+            .from('roles')
+            .select('*')
+            .eq('id', (assignedUserData as any).role_id)
+            .single();
+          setAssignedUser({ ...(assignedUserData as any), roles: assignedUserRole ?? undefined } as UserWithRole);
+        }
+      }
     } catch (error) {
       console.error('Error fetching task:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTaskUsers = async () => {
+    if (!id || !task) return;
+    try {
+      const userIds = new Set<string>();
+      
+      // Add assigned user if exists
+      if (task.assigned_to) {
+        userIds.add(task.assigned_to);
+      }
+      
+      // Add user IDs from comments
+      comments.forEach((comment) => {
+        if ((comment as any).user_id) {
+          userIds.add((comment as any).user_id);
+        }
+      });
+      
+      // Add user IDs from notes
+      notes.forEach((note) => {
+        if ((note as any).user_id) {
+          userIds.add((note as any).user_id);
+        }
+      });
+      
+      // Add user IDs from files
+      files.forEach((file) => {
+        if ((file as any).user_id) {
+          userIds.add((file as any).user_id);
+        }
+      });
+
+      if (userIds.size > 0) {
+        const userIdsArray = Array.from(userIds);
+        const { data: usersData, error } = await supabase
+          .from('users')
+          .select('*')
+          .in('id', userIdsArray);
+
+        if (error) throw error;
+
+        if (usersData && usersData.length > 0) {
+          // Fetch roles for each user
+          const usersWithRoles = await Promise.all(
+            usersData.map(async (user: any) => {
+              if (user.role_id) {
+                const { data: roleData } = await supabase
+                  .from('roles')
+                  .select('*')
+                  .eq('id', user.role_id)
+                  .single();
+                return { ...user, roles: roleData ?? undefined } as UserWithRole;
+              }
+              return { ...user } as UserWithRole;
+            })
+          );
+          setTaskUsers(usersWithRoles);
+        } else {
+          setTaskUsers([]);
+        }
+      } else {
+        setTaskUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching task users:', error);
+      setTaskUsers([]);
     }
   };
 
@@ -665,6 +760,53 @@ export function TaskDetail() {
               <CardTitle>Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Assigned User */}
+              {assignedUser && (
+                <div className="space-y-2">
+                  <Label>Assigned To</Label>
+                  <div className="text-sm">
+                    <p className="font-medium">{assignedUser.full_name ?? assignedUser.email ?? 'Unknown'}</p>
+                    {(assignedUser as any).roles && (
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {((assignedUser as any).roles as { name: string }).name.replace('_', ' ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Team Members */}
+              {taskUsers.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Team Members</Label>
+                  <div className="space-y-2">
+                    {taskUsers.map((user) => {
+                      const role = (user as any).roles as { name: string } | null;
+                      const isAssigned = user.id === task?.assigned_to;
+                      return (
+                        <div key={user.id} className="text-sm">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">
+                              {user.full_name ?? user.email ?? 'Unknown'}
+                            </p>
+                            {isAssigned && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                                Assigned
+                              </span>
+                            )}
+                          </div>
+                          {role && (
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {role.name.replace('_', ' ')}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
               {/* Status: Users can update if they have canUpdateTaskStatus or canEditTasks, but not if task is closed */}
               <div className="space-y-2">
                 <Label>Status</Label>
