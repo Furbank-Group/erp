@@ -57,8 +57,18 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+      <div className="space-y-4 md:space-y-6 w-full">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Dashboard</h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
+            {role === UserRole.SUPER_ADMIN && 'Global overview across all projects'}
+            {role === UserRole.ADMIN && 'Operational overview of your projects'}
+            {role === UserRole.USER && 'Your personal productivity overview'}
+          </p>
+        </div>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -263,22 +273,22 @@ export function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-2 sm:grid sm:grid-cols-4 sm:gap-2 sm:gap-3 text-xs">
-                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 sm:gap-2 sm:gap-3 text-xs">
+                            <div className="min-w-0">
                               <div className="text-muted-foreground text-xs">Total</div>
-                              <div className="font-medium text-xs sm:text-sm">{project.total_tasks}</div>
+                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</div>
                             </div>
-                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
+                            <div className="min-w-0">
                               <div className="text-muted-foreground text-xs">Open</div>
-                              <div className="font-medium text-xs sm:text-sm">{project.open_tasks}</div>
+                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</div>
                             </div>
-                            <div className={`flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0 ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
+                            <div className={`min-w-0 ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
                               <div className="text-muted-foreground text-xs">Overdue</div>
-                              <div className="font-semibold text-xs sm:text-sm">{project.overdue_tasks}</div>
+                              <div className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</div>
                             </div>
-                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
+                            <div className="min-w-0">
                               <div className="text-muted-foreground text-xs">Closed</div>
-                              <div className="font-medium text-xs sm:text-sm">{project.closed_tasks}</div>
+                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.closed_tasks}</div>
                             </div>
                           </div>
                         </div>
