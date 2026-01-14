@@ -6,6 +6,35 @@ import type { Task } from '@/lib/supabase/types';
  * Provides role-specific dashboard statistics using efficient RPC functions
  */
 
+export interface ProjectHealth {
+  project_id: string;
+  project_name: string;
+  project_status: string;
+  total_tasks: number;
+  open_tasks: number;
+  overdue_tasks: number;
+  closed_tasks: number;
+  completion_percentage: number;
+}
+
+export interface UserWorkload {
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_role: string;
+  assigned_tasks: number;
+  overdue_tasks: number;
+  tasks_waiting_review: number;
+}
+
+export interface TaskUrgencySummary {
+  status: string;
+  overdue_count: number;
+  due_today_count: number;
+  due_soon_count: number;
+  total_count: number;
+}
+
 export interface DashboardStats {
   // Super Admin specific
   totalProjects?: number;
@@ -25,6 +54,12 @@ export interface DashboardStats {
   tasksDueToday: number;
   overdueTasks: number;
   tasksAwaitingReview: number;
+  
+  // Enhanced dashboard data
+  projectHealth?: ProjectHealth[];
+  userWorkload?: UserWorkload[];
+  taskUrgencySummary?: TaskUrgencySummary[];
+  closedTasksCount?: number;
 }
 
 /**
@@ -69,6 +104,28 @@ export async function getSuperAdminDashboardStats(): Promise<{
       task_status_distribution: { status: string; count: number }[];
     };
 
+    // Fetch enhanced data
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
+      p_user_id: user.id,
+    });
+    
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: userWorkload } = await supabase.rpc('get_user_workload_summary', {
+      p_user_id: user.id,
+    });
+    
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
+      p_user_id: user.id,
+    });
+
+    // Count closed tasks
+    const { count: closedTasksCount } = await supabase
+      .from('tasks')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'closed');
+
     return {
       data: {
         totalProjects: stats.total_projects,
@@ -77,6 +134,10 @@ export async function getSuperAdminDashboardStats(): Promise<{
         overdueTasks: stats.overdue_tasks,
         tasksAwaitingReview: stats.tasks_awaiting_review,
         taskStatusDistribution: stats.task_status_distribution,
+        projectHealth: (projectHealth as ProjectHealth[] | null) ?? [],
+        userWorkload: (userWorkload as UserWorkload[] | null) ?? [],
+        taskUrgencySummary: (taskUrgency as TaskUrgencySummary[] | null) ?? [],
+        closedTasksCount: closedTasksCount ?? 0,
       },
       error: null,
     };
@@ -150,6 +211,28 @@ export async function getAdminDashboardStats(): Promise<{
       }
     }
 
+    // Fetch enhanced data
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
+      p_user_id: user.id,
+    });
+    
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: userWorkload } = await supabase.rpc('get_user_workload_summary', {
+      p_user_id: user.id,
+    });
+    
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
+      p_user_id: user.id,
+    });
+
+    // Count closed tasks
+    const { count: closedTasksCount } = await supabase
+      .from('tasks')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'closed');
+
     return {
       data: {
         activeProjects: stats.active_projects,
@@ -157,6 +240,10 @@ export async function getAdminDashboardStats(): Promise<{
         overdueTasks: stats.overdue_tasks,
         tasksAwaitingReview: stats.tasks_awaiting_review,
         recentlyUpdatedTasks,
+        projectHealth: (projectHealth as ProjectHealth[] | null) ?? [],
+        userWorkload: (userWorkload as UserWorkload[] | null) ?? [],
+        taskUrgencySummary: (taskUrgency as TaskUrgencySummary[] | null) ?? [],
+        closedTasksCount: closedTasksCount ?? 0,
       },
       error: null,
     };
@@ -215,6 +302,24 @@ export async function getStaffDashboardStats(): Promise<{
       tasks_submitted_for_review: number;
     };
 
+    // Fetch enhanced data for staff
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
+      p_user_id: user.id,
+    });
+    
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
+      p_user_id: user.id,
+    });
+
+    // Count closed tasks for user
+    const { count: closedTasksCount } = await supabase
+      .from('tasks')
+      .select('*', { count: 'exact', head: true })
+      .eq('assigned_to', user.id)
+      .eq('status', 'closed');
+
     return {
       data: {
         myTasks: stats.my_tasks,
@@ -223,6 +328,9 @@ export async function getStaffDashboardStats(): Promise<{
         tasksAwaitingAction: stats.tasks_awaiting_action,
         tasksSubmittedForReview: stats.tasks_submitted_for_review,
         tasksAwaitingReview: 0, // Not applicable for staff
+        projectHealth: ((projectHealth as unknown) as ProjectHealth[] | null) ?? [],
+        taskUrgencySummary: ((taskUrgency as unknown) as TaskUrgencySummary[] | null) ?? [],
+        closedTasksCount: closedTasksCount ?? 0,
       },
       error: null,
     };

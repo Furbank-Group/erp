@@ -412,6 +412,47 @@ export interface Database {
         };
         Returns: boolean;
       };
+      get_project_health_summary: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Array<{
+          project_id: string;
+          project_name: string;
+          project_status: string;
+          total_tasks: number;
+          open_tasks: number;
+          overdue_tasks: number;
+          closed_tasks: number;
+          completion_percentage: number;
+        }>;
+      };
+      get_user_workload_summary: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Array<{
+          user_id: string;
+          user_name: string;
+          user_email: string;
+          user_role: string;
+          assigned_tasks: number;
+          overdue_tasks: number;
+          tasks_waiting_review: number;
+        }>;
+      };
+      get_task_urgency_summary: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Array<{
+          status: string;
+          overdue_count: number;
+          due_today_count: number;
+          due_soon_count: number;
+          total_count: number;
+        }>;
+      };
     };
   };
 }

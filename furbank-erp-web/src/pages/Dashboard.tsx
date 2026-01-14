@@ -10,10 +10,11 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserRole } from '@/lib/supabase/types';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
+import { ArrowRight, Archive } from 'lucide-react';
+import { getTaskStatusDisplay, getProjectStatusDisplay } from '@/lib/utils/taskDisplay';
 
 export function Dashboard() {
-  const { user, role } = useAuth();
+  const { user, role, permissions } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,6 @@ export function Dashboard() {
   }
 
   if (error) {
-    // Check if it's a migration-related error
     const isMigrationError = error.message.includes('does not exist') || 
                             error.message.includes('function') ||
                             error.message.includes('User does not exist');
@@ -74,7 +74,7 @@ export function Dashboard() {
         {isMigrationError && (
           <div className="text-sm text-muted-foreground max-w-md text-center">
             <p>This might be because database migrations haven't been run yet.</p>
-            <p className="mt-2">Please run migrations 007-010 in your Supabase SQL Editor.</p>
+            <p className="mt-2">Please run migrations 010 and 020 in your Supabase SQL Editor.</p>
           </div>
         )}
       </div>
@@ -85,248 +85,305 @@ export function Dashboard() {
     return null;
   }
 
-  // Super Admin View
-  if (role === UserRole.SUPER_ADMIN) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Global overview across all projects</p>
-        </div>
+  // Common task metrics summary
+  const taskMetrics = {
+    total: stats.totalTasks ?? stats.myTasks ?? 0,
+    dueToday: stats.tasksDueToday,
+    overdue: stats.overdueTasks,
+    waitingReview: stats.tasksAwaitingReview,
+    closed: stats.closedTasksCount ?? 0,
+  };
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalProjects ?? 0}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalTasks ?? 0}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tasks Due Today</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.tasksDueToday}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue Tasks</CardTitle>
-              <AlertCircle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-300 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.tasksAwaitingReview}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {stats.taskStatusDistribution && stats.taskStatusDistribution.length > 0 && (
-          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CardHeader>
-              <CardTitle>Task Status Distribution</CardTitle>
-              <CardDescription>Breakdown of tasks by status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {stats.taskStatusDistribution?.map((item, index) => (
-                  <div
-                    key={item.status}
-                    className={`flex items-center justify-between p-4 rounded-lg border ${
-                      index % 2 === 0
-                        ? 'bg-card border-border/50 dark:bg-card/50'
-                        : 'bg-accent/30 border-border/30 dark:bg-accent/10'
-                    } ${
-                      index < (stats.taskStatusDistribution?.length ?? 0) - 1
-                        ? 'mb-2 border-b-2'
-                        : ''
-                    } hover:bg-accent/50 hover:shadow-sm transition-all duration-200`}
-                  >
-                    <span className="text-sm font-medium capitalize">{item.status.replace('_', ' ')}</span>
-                    <span className="text-2xl font-bold">{item.count}</span>
-                  </div>
-                )) ?? []}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  }
-
-  // Admin View
-  if (role === UserRole.ADMIN) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Operational overview of your projects</p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.activeProjects ?? 0}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tasks Due Today</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.tasksDueToday}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue Tasks</CardTitle>
-              <AlertCircle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.tasksAwaitingReview}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {stats.recentlyUpdatedTasks && stats.recentlyUpdatedTasks.length > 0 && (
-          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CardHeader>
-              <CardTitle>Recently Updated Tasks</CardTitle>
-              <CardDescription>Tasks that were recently modified</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {stats.recentlyUpdatedTasks.slice(0, 10).map((task, index) => (
-                  <Link
-                    key={task.id}
-                    to={`/tasks/${task.id}`}
-                    className="flex items-center justify-between p-3 rounded-md border hover:bg-accent hover:shadow-sm hover:scale-[1.01] transition-all duration-200 group"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{task.title}</p>
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {task.status.replace('_', ' ')}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  }
-
-  // Staff View
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Your personal productivity overview</p>
+        <p className="text-muted-foreground mt-1">
+          {role === UserRole.SUPER_ADMIN && 'Global overview across all projects'}
+          {role === UserRole.ADMIN && 'Operational overview of your projects'}
+          {role === UserRole.USER && 'Your personal productivity overview'}
+        </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Link to="/tasks" className="block">
-          <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group animate-in fade-in slide-in-from-left-4 duration-300">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors">My Tasks</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.myTasks ?? 0}</div>
-              <div className="mt-2">
-                <span className="text-sm text-primary group-hover:underline">View all</span>
-                <ArrowRight className="h-3 w-3 ml-1 inline group-hover:translate-x-1 transition-transform" />
+      {/* Section 1: Tasks (Most Urgent) */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Tasks</h2>
+          <Link to="/tasks" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+            View all <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+
+        {/* Task Metrics Summary */}
+        <div className="grid gap-3 md:grid-cols-5 mb-4">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground mb-1">Total</div>
+              <div className="text-2xl font-bold">{taskMetrics.total}</div>
+            </CardContent>
+          </Card>
+          <Card className={taskMetrics.dueToday > 0 ? 'border-orange-300 bg-orange-50/50' : ''}>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground mb-1">Due Today</div>
+              <div className={`text-2xl font-bold ${taskMetrics.dueToday > 0 ? 'text-orange-700' : ''}`}>
+                {taskMetrics.dueToday}
               </div>
             </CardContent>
           </Card>
-        </Link>
+          <Card className={taskMetrics.overdue > 0 ? 'border-red-300 bg-red-50/50' : ''}>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground mb-1">Overdue</div>
+              <div className={`text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700' : ''}`}>
+                {taskMetrics.overdue}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground mb-1">Waiting Review</div>
+              <div className="text-2xl font-bold">{taskMetrics.waitingReview}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-xs text-muted-foreground mb-1">Closed</div>
+              <div className="text-2xl font-bold">{taskMetrics.closed}</div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Due Today</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.tasksDueToday}</div>
+        {/* Task Status Breakdown */}
+        {stats.taskUrgencySummary && stats.taskUrgencySummary.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Status Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {stats.taskUrgencySummary.map((summary) => {
+                  const statusDisplay = getTaskStatusDisplay(summary.status);
+                  const StatusIcon = statusDisplay.icon;
+                  const hasUrgency = summary.overdue_count > 0 || summary.due_today_count > 0;
+
+                  return (
+                    <div
+                      key={summary.status}
+                      className={`flex items-center justify-between p-3 rounded-md border ${
+                        hasUrgency ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <StatusIcon className={`h-4 w-4 ${statusDisplay.color}`} />
+                        <span className="text-sm font-medium capitalize">
+                          {summary.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        {summary.overdue_count > 0 && (
+                          <span className="text-red-700 font-semibold">
+                            {summary.overdue_count} overdue
+                          </span>
+                        )}
+                        {summary.due_today_count > 0 && (
+                          <span className="text-orange-700 font-semibold">
+                            {summary.due_today_count} due today
+                          </span>
+                        )}
+                        {summary.due_soon_count > 0 && (
+                          <span className="text-gray-600">
+                            {summary.due_soon_count} due soon
+                          </span>
+                        )}
+                        <span className="text-gray-700 font-medium">
+                          {summary.total_count} total
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      {/* Section 2: Projects (Work Containers) */}
+      {stats.projectHealth && stats.projectHealth.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Projects</h2>
+            <Link to="/projects" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+              View all <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Project Health</CardTitle>
+              <CardDescription>Task distribution and completion status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats.projectHealth
+                  .filter(p => p.project_status !== 'closed')
+                  .map((project) => {
+                    const statusDisplay = getProjectStatusDisplay(project.project_status);
+                    const StatusIcon = statusDisplay.icon;
+                    const hasOverdue = project.overdue_tasks > 0;
+
+                    return (
+                      <Link
+                        key={project.project_id}
+                        to={`/projects/${project.project_id}`}
+                        className="block"
+                      >
+                        <div
+                          className={`p-4 rounded-md border hover:bg-gray-50 transition-colors ${
+                            hasOverdue ? 'border-orange-300 bg-orange-50/30' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-sm">{project.project_name}</h3>
+                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                                  <StatusIcon className="h-3 w-3" />
+                                  <span>{statusDisplay.label}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Completion</div>
+                              <div className="text-sm font-semibold">{project.completion_percentage}%</div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-4 gap-3 text-xs">
+                            <div>
+                              <div className="text-muted-foreground">Total</div>
+                              <div className="font-medium">{project.total_tasks}</div>
+                            </div>
+                            <div>
+                              <div className="text-muted-foreground">Open</div>
+                              <div className="font-medium">{project.open_tasks}</div>
+                            </div>
+                            <div className={hasOverdue ? 'text-red-700' : ''}>
+                              <div className="text-muted-foreground">Overdue</div>
+                              <div className="font-semibold">{project.overdue_tasks}</div>
+                            </div>
+                            <div>
+                              <div className="text-muted-foreground">Closed</div>
+                              <div className="font-medium">{project.closed_tasks}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+                {/* Closed Projects (Collapsed) */}
+                {stats.projectHealth.filter(p => p.project_status === 'closed').length > 0 && (
+                  <details className="mt-4">
+                    <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+                      {stats.projectHealth.filter(p => p.project_status === 'closed').length} closed project(s)
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {stats.projectHealth
+                        .filter(p => p.project_status === 'closed')
+                        .map((project) => (
+                          <Link
+                            key={project.project_id}
+                            to={`/projects/${project.project_id}`}
+                            className="block"
+                          >
+                            <div className="p-3 rounded-md border border-gray-200 bg-gray-50 opacity-75 hover:opacity-100 transition-opacity">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Archive className="h-3 w-3 text-gray-500" />
+                                  <span className="text-sm font-medium">{project.project_name}</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {project.total_tasks} tasks • {project.completion_percentage}% complete
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Section 3: Users (Capacity & Accountability) - Only for Admin/Super Admin */}
+      {stats.userWorkload && stats.userWorkload.length > 0 && (role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN) && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">User Workload</h2>
+            {permissions.canViewAllUsers && (
+              <Link to="/users" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+                View all <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Workload Summary</CardTitle>
+              <CardDescription>Tasks assigned and overdue by user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-semibold">Name</th>
+                      <th className="text-left p-2 font-semibold">Role</th>
+                      <th className="text-right p-2 font-semibold">Assigned</th>
+                      <th className="text-right p-2 font-semibold">Overdue</th>
+                      <th className="text-right p-2 font-semibold">Awaiting Review</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.userWorkload.map((user) => {
+                      const hasOverdue = user.overdue_tasks > 0;
+                      return (
+                        <tr
+                          key={user.user_id}
+                          className={`border-b hover:bg-gray-50 transition-colors ${
+                            hasOverdue ? 'bg-red-50/30' : ''
+                          }`}
+                        >
+                          <td className="p-2 font-medium">{user.user_name}</td>
+                          <td className="p-2 text-muted-foreground capitalize">
+                            {user.user_role.replace('_', ' ')}
+                          </td>
+                          <td className="p-2 text-right">{user.assigned_tasks}</td>
+                          <td className={`p-2 text-right font-semibold ${hasOverdue ? 'text-red-700' : ''}`}>
+                            {user.overdue_tasks}
+                          </td>
+                          <td className="p-2 text-right">{user.tasks_waiting_review}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Empty States */}
+      {(!stats.projectHealth || stats.projectHealth.length === 0) && (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No projects found.
           </CardContent>
         </Card>
-
-        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats.overdueTasks}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Awaiting My Action</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.tasksAwaitingAction ?? 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-300 hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Submitted for Review</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.tasksSubmittedForReview ?? 0}</div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 }
