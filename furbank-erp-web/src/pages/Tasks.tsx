@@ -316,7 +316,12 @@ export function Tasks() {
                           {task.title}
                         </CardTitle>
                         <CardDescription>
-                          {(task.projects as Project)?.name ?? 'Unknown Project'}
+                          {(task.projects as Project)?.name ?? 'Standalone Task'}
+                          {taskIsClosed && closedByProject && (
+                            <span className="text-xs italic text-muted-foreground ml-2">
+                              (Closed - Project closed)
+                            </span>
+                          )}
                         </CardDescription>
                       </div>
                       <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
