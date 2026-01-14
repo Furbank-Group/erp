@@ -127,25 +127,25 @@ export function Projects() {
               <Link
                 key={project.id}
                 to={`/projects/${project.id}`}
-                className="block"
+                className="block h-full"
               >
-                <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg flex-1 group-hover:text-primary transition-colors">
+                <Card className="h-full flex flex-col hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
+                  <CardHeader className="flex-shrink-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-lg flex-1 group-hover:text-primary transition-colors line-clamp-2">
                         {project.name}
                       </CardTitle>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
                         <StatusIcon className="h-3.5 w-3.5" />
                         <span className="text-xs font-medium">{statusDisplay.label}</span>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
+                  <CardContent className="flex-1 flex flex-col">
+                    <p className="text-sm text-muted-foreground line-clamp-3 flex-1">
                       {project.description ?? 'No description'}
                     </p>
-                    <div className="mt-4 text-xs text-muted-foreground">
+                    <div className="mt-4 text-xs text-muted-foreground flex-shrink-0">
                       Created {new Date(project.created_at).toLocaleDateString()}
                     </div>
                   </CardContent>

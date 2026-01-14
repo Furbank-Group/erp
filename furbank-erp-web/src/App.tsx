@@ -6,6 +6,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Projects } from './pages/Projects';
+import { ProjectDetail } from './pages/ProjectDetail';
 import { Tasks } from './pages/Tasks';
 import { TaskDetail } from './pages/TaskDetail';
 import { Reports } from './pages/Reports';
@@ -64,6 +65,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppLayout>
               <Projects />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <ProjectDetail />
             </AppLayout>
           </ProtectedRoute>
         }
