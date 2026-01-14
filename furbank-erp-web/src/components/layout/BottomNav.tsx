@@ -74,13 +74,13 @@ export function BottomNav() {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors",
+                "flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200",
                 isActive(item.path)
-                  ? "text-primary border-t-2 border-primary"
-                  : "text-muted-foreground"
+                  ? "text-primary border-t-2 border-primary scale-105"
+                  : "text-muted-foreground hover:text-foreground active:scale-95"
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5 transition-transform duration-200" />
               <span className="text-xs font-medium">{item.label}</span>
             </Link>
           );

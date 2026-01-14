@@ -20,7 +20,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto pb-16 md:pb-0">
-          <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
+          <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl animate-in fade-in duration-300">
             {children}
           </div>
         </main>

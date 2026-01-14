@@ -124,29 +124,33 @@ export function Projects() {
             const StatusIcon = statusDisplay.icon;
             
             return (
-              <Card key={project.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg flex-1">
-                      <Link to={`/projects/${project.id}`} className="hover:underline">
+              <Link
+                key={project.id}
+                to={`/projects/${project.id}`}
+                className="block"
+              >
+                <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-lg flex-1 group-hover:text-primary transition-colors">
                         {project.name}
-                      </Link>
-                    </CardTitle>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                      <StatusIcon className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">{statusDisplay.label}</span>
+                      </CardTitle>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                        <StatusIcon className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">{statusDisplay.label}</span>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {project.description ?? 'No description'}
-                  </p>
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    Created {new Date(project.created_at).toLocaleDateString()}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-3">
+                      {project.description ?? 'No description'}
+                    </p>
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      Created {new Date(project.created_at).toLocaleDateString()}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>

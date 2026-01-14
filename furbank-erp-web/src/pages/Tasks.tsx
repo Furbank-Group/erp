@@ -285,56 +285,59 @@ export function Tasks() {
             const StatusIcon = statusDisplay.icon;
 
             return (
-              <Card
+              <Link
                 key={task.id}
-                className={`hover:shadow-md transition-shadow border-l-4 ${priorityDisplay.borderColor}`}
+                to={`/tasks/${task.id}`}
+                className="block"
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">
-                        <Link to={`/tasks/${task.id}`} className="hover:underline">
+                <Card
+                  className={`hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer border-l-4 ${priorityDisplay.borderColor} group`}
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg group-hover:text-primary transition-colors">
                           {task.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>
-                        {(task.projects as Project)?.name ?? 'Unknown Project'}
-                      </CardDescription>
+                        </CardTitle>
+                        <CardDescription>
+                          {(task.projects as Project)?.name ?? 'Unknown Project'}
+                        </CardDescription>
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                        <StatusIcon className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">{statusDisplay.label}</span>
+                      </div>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                      <StatusIcon className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">{statusDisplay.label}</span>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                      {task.description ?? 'No description'}
+                    </p>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        {task.assigned_to && (
+                          <span className="text-xs text-muted-foreground">
+                            Assigned to: {(task.assigned_user as UserWithRole)?.full_name ?? (task.assigned_user as UserWithRole)?.email ?? 'Unknown'}
+                          </span>
+                        )}
+                        {dueDateDisplay && (() => {
+                          const DueDateIcon = dueDateDisplay.icon;
+                          return (
+                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
+                              <DueDateIcon className="h-3.5 w-3.5" />
+                              <span className="text-xs font-medium">{dueDateDisplay.label}</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
+                        <PriorityIcon className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">{priorityDisplay.label}</span>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                    {task.description ?? 'No description'}
-                  </p>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      {task.assigned_to && (
-                        <span className="text-xs text-muted-foreground">
-                          Assigned to: {(task.assigned_user as UserWithRole)?.full_name ?? (task.assigned_user as UserWithRole)?.email ?? 'Unknown'}
-                        </span>
-                      )}
-                      {dueDateDisplay && (() => {
-                        const DueDateIcon = dueDateDisplay.icon;
-                        return (
-                          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
-                            <DueDateIcon className="h-3.5 w-3.5" />
-                            <span className="text-xs font-medium">{dueDateDisplay.label}</span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
-                      <PriorityIcon className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">{priorityDisplay.label}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>

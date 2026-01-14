@@ -80,20 +80,21 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-4 space-y-1">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
                   isActive(item.path)
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-1"
                 )}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-5 w-5 transition-transform duration-200" />
                 <span>{item.label}</span>
               </Link>
             );

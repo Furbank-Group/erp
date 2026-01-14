@@ -476,7 +476,7 @@ export function TaskDetail() {
           </Card>
 
           {permissions.canAddComments && (
-            <Card>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-75">
               <CardHeader>
                 <CardTitle>Comments</CardTitle>
               </CardHeader>
@@ -491,8 +491,12 @@ export function TaskDetail() {
                   <Button onClick={handleAddComment}>Post</Button>
                 </div>
                 <div className="space-y-4">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="border-l-2 pl-4 py-2">
+                  {comments.map((comment, index) => (
+                    <div
+                      key={comment.id}
+                      className="border-l-2 pl-4 py-2 hover:bg-accent/30 rounded-r-md transition-colors duration-200"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">
                           {(comment as any).user?.full_name ?? (comment as any).user?.email ?? 'Unknown'}
@@ -522,7 +526,7 @@ export function TaskDetail() {
           )}
 
           {permissions.canAddNotes && (
-            <Card>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-150">
               <CardHeader>
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
@@ -537,8 +541,12 @@ export function TaskDetail() {
                   <Button onClick={handleAddNote}>Add Note</Button>
                 </div>
                 <div className="space-y-4">
-                  {notes.map((note) => (
-                    <div key={note.id} className="border-l-2 pl-4 py-2">
+                  {notes.map((note, index) => (
+                    <div
+                      key={note.id}
+                      className="border-l-2 pl-4 py-2 hover:bg-accent/30 rounded-r-md transition-colors duration-200"
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">
                           {(note as any).user?.full_name ?? (note as any).user?.email ?? 'Unknown'}
@@ -556,7 +564,7 @@ export function TaskDetail() {
           )}
 
           {permissions.canUploadFiles && (
-            <Card>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">
               <CardHeader>
                 <CardTitle>Files</CardTitle>
               </CardHeader>
@@ -577,13 +585,13 @@ export function TaskDetail() {
                       .getPublicUrl(file.file_path).data.publicUrl;
                     
                     return (
-                      <div key={file.id} className="flex items-center justify-between p-2 border rounded">
+                      <div key={file.id} className="flex items-center justify-between p-2 border rounded hover:bg-accent/50 transition-colors duration-200">
                         <span className="text-sm">{file.file_name}</span>
                         <a
                           href={fileUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline"
+                          className="text-sm text-primary hover:underline hover:text-primary/80 transition-colors"
                         >
                           Download
                         </a>

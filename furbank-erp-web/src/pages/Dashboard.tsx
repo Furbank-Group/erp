@@ -10,7 +10,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserRole } from '@/lib/supabase/types';
 import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
 
 export function Dashboard() {
@@ -96,7 +95,7 @@ export function Dashboard() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -106,7 +105,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
@@ -116,7 +115,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Tasks Due Today</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -126,7 +125,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue Tasks</CardTitle>
               <AlertCircle className="h-4 w-4 text-destructive" />
@@ -136,7 +135,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-300 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -148,19 +147,30 @@ export function Dashboard() {
         </div>
 
         {stats.taskStatusDistribution && stats.taskStatusDistribution.length > 0 && (
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CardHeader>
               <CardTitle>Task Status Distribution</CardTitle>
               <CardDescription>Breakdown of tasks by status</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {stats.taskStatusDistribution.map((item) => (
-                  <div key={item.status} className="flex items-center justify-between">
+                {stats.taskStatusDistribution?.map((item, index) => (
+                  <div
+                    key={item.status}
+                    className={`flex items-center justify-between p-4 rounded-lg border ${
+                      index % 2 === 0
+                        ? 'bg-card border-border/50 dark:bg-card/50'
+                        : 'bg-accent/30 border-border/30 dark:bg-accent/10'
+                    } ${
+                      index < (stats.taskStatusDistribution?.length ?? 0) - 1
+                        ? 'mb-2 border-b-2'
+                        : ''
+                    } hover:bg-accent/50 hover:shadow-sm transition-all duration-200`}
+                  >
                     <span className="text-sm font-medium capitalize">{item.status.replace('_', ' ')}</span>
                     <span className="text-2xl font-bold">{item.count}</span>
                   </div>
-                ))}
+                )) ?? []}
               </div>
             </CardContent>
           </Card>
@@ -179,7 +189,7 @@ export function Dashboard() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Projects</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -189,7 +199,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Tasks Due Today</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -199,7 +209,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Overdue Tasks</CardTitle>
               <AlertCircle className="h-4 w-4 text-destructive" />
@@ -209,7 +219,7 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Awaiting Review</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -221,26 +231,27 @@ export function Dashboard() {
         </div>
 
         {stats.recentlyUpdatedTasks && stats.recentlyUpdatedTasks.length > 0 && (
-          <Card>
+          <Card className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CardHeader>
               <CardTitle>Recently Updated Tasks</CardTitle>
               <CardDescription>Tasks that were recently modified</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {stats.recentlyUpdatedTasks.slice(0, 10).map((task) => (
+                {stats.recentlyUpdatedTasks.slice(0, 10).map((task, index) => (
                   <Link
                     key={task.id}
                     to={`/tasks/${task.id}`}
-                    className="flex items-center justify-between p-3 rounded-md border hover:bg-accent transition-colors"
+                    className="flex items-center justify-between p-3 rounded-md border hover:bg-accent hover:shadow-sm hover:scale-[1.01] transition-all duration-200 group"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{task.title}</p>
                       <p className="text-xs text-muted-foreground capitalize">
                         {task.status.replace('_', ' ')}
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 ))}
               </div>
@@ -260,22 +271,23 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Tasks</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.myTasks ?? 0}</div>
-            <Link to="/tasks">
-              <Button variant="link" className="p-0 h-auto mt-2">
-                View all <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <Link to="/tasks" className="block">
+          <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group animate-in fade-in slide-in-from-left-4 duration-300">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium group-hover:text-primary transition-colors">My Tasks</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.myTasks ?? 0}</div>
+              <div className="mt-2">
+                <span className="text-sm text-primary group-hover:underline">View all</span>
+                <ArrowRight className="h-3 w-3 ml-1 inline group-hover:translate-x-1 transition-transform" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
+        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-75 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Due Today</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -285,7 +297,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-150 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Overdue</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
@@ -295,7 +307,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Awaiting My Action</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -305,7 +317,7 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-in fade-in slide-in-from-left-4 duration-300 delay-300 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Submitted for Review</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
