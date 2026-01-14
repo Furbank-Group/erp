@@ -95,10 +95,10 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-4 md:space-y-6 w-full">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Dashboard</h1>
+        <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
           {role === UserRole.SUPER_ADMIN && 'Global overview across all projects'}
           {role === UserRole.ADMIN && 'Operational overview of your projects'}
           {role === UserRole.USER && 'Your personal productivity overview'}
@@ -107,47 +107,47 @@ export function Dashboard() {
 
       {/* Section 1: Tasks (Most Urgent) */}
       <section>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <h2 className="text-lg md:text-xl font-semibold">Tasks</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 md:mb-4">
+          <h2 className="text-base sm:text-lg md:text-xl font-semibold">Tasks</h2>
           <Link to="/tasks" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
             View all <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
 
         {/* Task Metrics Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-3 md:mb-4">
           <Card>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
               <div className="text-xs text-muted-foreground mb-1">Total</div>
-              <div className="text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
             </CardContent>
           </Card>
           <Card className={taskMetrics.dueToday > 0 ? 'border-orange-500/50 dark:border-orange-400/50 bg-orange-50/50 dark:bg-orange-950/20' : ''}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
               <div className="text-xs text-muted-foreground mb-1">Due Today</div>
-              <div className={`text-xl md:text-2xl font-bold ${taskMetrics.dueToday > 0 ? 'text-orange-700 dark:text-orange-400' : ''}`}>
+              <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.dueToday > 0 ? 'text-orange-700 dark:text-orange-400' : ''}`}>
                 {taskMetrics.dueToday}
               </div>
             </CardContent>
           </Card>
           <Card className={taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
               <div className="text-xs text-muted-foreground mb-1">Overdue</div>
-              <div className={`text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
+              <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
                 {taskMetrics.overdue}
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
               <div className="text-xs text-muted-foreground mb-1">Waiting Review</div>
-              <div className="text-xl md:text-2xl font-bold">{taskMetrics.waitingReview}</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.waitingReview}</div>
             </CardContent>
           </Card>
           <Card className="col-span-2 sm:col-span-1">
-            <CardContent className="pt-4 pb-4">
+            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
               <div className="text-xs text-muted-foreground mb-1">Closed</div>
-              <div className="text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
             </CardContent>
           </Card>
         </div>
@@ -155,10 +155,10 @@ export function Dashboard() {
         {/* Task Status Breakdown */}
         {stats.taskUrgencySummary && stats.taskUrgencySummary.length > 0 && (
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base md:text-lg">Status Breakdown</CardTitle>
+            <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
+              <CardTitle className="text-sm sm:text-base md:text-lg">Status Breakdown</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
               <div className="space-y-2">
                 {stats.taskUrgencySummary.map((summary) => {
                   const statusDisplay = getTaskStatusDisplay(summary.status);
@@ -168,19 +168,19 @@ export function Dashboard() {
                   return (
                     <div
                       key={summary.status}
-                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 p-3 rounded-md border transition-colors ${
+                      className={`flex flex-col gap-2 p-2.5 sm:p-3 rounded-md border transition-colors ${
                         hasUrgency 
                           ? 'bg-accent/50 dark:bg-accent/20 border-border' 
                           : 'bg-card border-border'
                       }`}
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <StatusIcon className={`h-4 w-4 shrink-0 ${statusDisplay.color}`} />
-                        <span className="text-sm font-medium capitalize truncate">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${statusDisplay.color}`} />
+                        <span className="text-xs sm:text-sm font-medium capitalize truncate">
                           {summary.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <div className="flex items-center flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs">
                         {summary.overdue_count > 0 && (
                           <span className="text-red-700 dark:text-red-400 font-semibold whitespace-nowrap">
                             {summary.overdue_count} overdue
@@ -196,7 +196,7 @@ export function Dashboard() {
                             {summary.due_soon_count} due soon
                           </span>
                         )}
-                        <span className="text-foreground font-medium whitespace-nowrap">
+                        <span className="text-foreground font-medium whitespace-nowrap ml-auto">
                           {summary.total_count} total
                         </span>
                       </div>
@@ -212,20 +212,20 @@ export function Dashboard() {
       {/* Section 2: Projects (Work Containers) */}
       {stats.projectHealth && stats.projectHealth.length > 0 && (
         <section>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <h2 className="text-lg md:text-xl font-semibold">Projects</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 md:mb-4">
+            <h2 className="text-base sm:text-lg md:text-xl font-semibold">Projects</h2>
             <Link to="/projects" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
 
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base md:text-lg">Project Health</CardTitle>
+            <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
+              <CardTitle className="text-sm sm:text-base md:text-lg">Project Health</CardTitle>
               <CardDescription className="text-xs md:text-sm">Task distribution and completion status</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
+              <div className="space-y-2 sm:space-y-3">
                 {stats.projectHealth
                   .filter(p => p.project_status !== 'closed')
                   .map((project) => {
@@ -240,43 +240,45 @@ export function Dashboard() {
                         className="block"
                       >
                         <div
-                          className={`p-3 md:p-4 rounded-md border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors ${
+                          className={`p-2.5 sm:p-3 md:p-4 rounded-md border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors ${
                             hasOverdue 
                               ? 'border-orange-500/50 dark:border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/20' 
                               : 'border-border'
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <h3 className="font-semibold text-sm md:text-base truncate">{project.project_name}</h3>
-                                <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                                  <StatusIcon className="h-3 w-3" />
-                                  <span>{statusDisplay.label}</span>
+                          <div className="flex flex-col gap-2 mb-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                  <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate">{project.project_name}</h3>
+                                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                                    <StatusIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                    <span className="hidden xs:inline">{statusDisplay.label}</span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="text-left sm:text-right shrink-0">
-                              <div className="text-xs text-muted-foreground">Completion</div>
-                              <div className="text-sm md:text-base font-semibold">{project.completion_percentage}%</div>
+                              <div className="text-right shrink-0">
+                                <div className="text-xs text-muted-foreground">Completion</div>
+                                <div className="text-xs sm:text-sm md:text-base font-semibold">{project.completion_percentage}%</div>
+                              </div>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs">
                             <div>
-                              <div className="text-muted-foreground">Total</div>
-                              <div className="font-medium text-sm">{project.total_tasks}</div>
+                              <div className="text-muted-foreground text-xs">Total</div>
+                              <div className="font-medium text-xs sm:text-sm">{project.total_tasks}</div>
                             </div>
                             <div>
-                              <div className="text-muted-foreground">Open</div>
-                              <div className="font-medium text-sm">{project.open_tasks}</div>
+                              <div className="text-muted-foreground text-xs">Open</div>
+                              <div className="font-medium text-xs sm:text-sm">{project.open_tasks}</div>
                             </div>
                             <div className={hasOverdue ? 'text-red-700 dark:text-red-400' : ''}>
-                              <div className="text-muted-foreground">Overdue</div>
-                              <div className="font-semibold text-sm">{project.overdue_tasks}</div>
+                              <div className="text-muted-foreground text-xs">Overdue</div>
+                              <div className="font-semibold text-xs sm:text-sm">{project.overdue_tasks}</div>
                             </div>
                             <div>
-                              <div className="text-muted-foreground">Closed</div>
-                              <div className="font-medium text-sm">{project.closed_tasks}</div>
+                              <div className="text-muted-foreground text-xs">Closed</div>
+                              <div className="font-medium text-xs sm:text-sm">{project.closed_tasks}</div>
                             </div>
                           </div>
                         </div>
@@ -324,8 +326,8 @@ export function Dashboard() {
       {/* Section 3: Users (Capacity & Accountability) - Only for Admin/Super Admin */}
       {stats.userWorkload && stats.userWorkload.length > 0 && (role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN) && (
         <section>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <h2 className="text-lg md:text-xl font-semibold">User Workload</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 md:mb-4">
+            <h2 className="text-base sm:text-lg md:text-xl font-semibold">User Workload</h2>
             {permissions.canViewAllUsers && (
               <Link to="/users" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
                 View all <ArrowRight className="h-3 w-3" />
@@ -334,20 +336,20 @@ export function Dashboard() {
           </div>
 
           <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base md:text-lg">Workload Summary</CardTitle>
+            <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
+              <CardTitle className="text-sm sm:text-base md:text-lg">Workload Summary</CardTitle>
               <CardDescription className="text-xs md:text-sm">Tasks assigned and overdue by user</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto -mx-6 px-6 md:mx-0 md:px-0">
-                <table className="w-full text-xs md:text-sm min-w-[600px] md:min-w-0">
+            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
+              <div className="overflow-x-auto -mx-4 md:-mx-6 px-4 md:px-6">
+                <table className="w-full text-xs md:text-sm min-w-[500px] sm:min-w-[600px] md:min-w-0">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left p-2 md:p-3 font-semibold">Name</th>
-                      <th className="text-left p-2 md:p-3 font-semibold hidden sm:table-cell">Role</th>
-                      <th className="text-right p-2 md:p-3 font-semibold">Assigned</th>
-                      <th className="text-right p-2 md:p-3 font-semibold">Overdue</th>
-                      <th className="text-right p-2 md:p-3 font-semibold">Awaiting Review</th>
+                      <th className="text-left p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Name</th>
+                      <th className="text-left p-2 sm:p-2.5 md:p-3 font-semibold hidden sm:table-cell text-xs sm:text-sm">Role</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Assigned</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Overdue</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Awaiting Review</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -360,23 +362,23 @@ export function Dashboard() {
                             hasOverdue ? 'bg-red-50/30 dark:bg-red-950/20' : ''
                           }`}
                         >
-                          <td className="p-2 md:p-3 font-medium">
+                          <td className="p-2 sm:p-2.5 md:p-3 font-medium text-xs sm:text-sm">
                             <div className="flex flex-col sm:hidden">
-                              <span>{user.user_name}</span>
+                              <span className="truncate">{user.user_name}</span>
                               <span className="text-xs text-muted-foreground capitalize mt-0.5">
                                 {user.user_role.replace('_', ' ')}
                               </span>
                             </div>
-                            <span className="hidden sm:inline">{user.user_name}</span>
+                            <span className="hidden sm:inline truncate">{user.user_name}</span>
                           </td>
-                          <td className="p-2 md:p-3 text-muted-foreground capitalize hidden sm:table-cell">
+                          <td className="p-2 sm:p-2.5 md:p-3 text-muted-foreground capitalize hidden sm:table-cell text-xs sm:text-sm">
                             {user.user_role.replace('_', ' ')}
                           </td>
-                          <td className="p-2 md:p-3 text-right font-medium">{user.assigned_tasks}</td>
-                          <td className={`p-2 md:p-3 text-right font-semibold ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right font-medium text-xs sm:text-sm">{user.assigned_tasks}</td>
+                          <td className={`p-2 sm:p-2.5 md:p-3 text-right font-semibold text-xs sm:text-sm ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
                             {user.overdue_tasks}
                           </td>
-                          <td className="p-2 md:p-3 text-right">{user.tasks_waiting_review}</td>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm">{user.tasks_waiting_review}</td>
                         </tr>
                       );
                     })}
