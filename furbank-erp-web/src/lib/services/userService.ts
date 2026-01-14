@@ -152,14 +152,21 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     // Get current admin session before creating new user
     // (signUp will auto-sign-in the new user, so we need to restore admin session)
     
-    // Temporary implementation using signUp (requires email confirmation disabled in Supabase)
+    // Create user via signUp
+    // Note: For testing phase, email confirmation should be disabled in Supabase Dashboard
+    // Settings → Authentication → Email Auth → Confirm email: OFF
+    // This allows dummy/non-functional emails during testing
+    // In production, enable email confirmation and use Edge Functions for user creation
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: undefined, // No email redirect for testing phase
         data: {
           full_name: fullName,
         },
+        // Disable email confirmation requirement for testing
+        // In production, this should be handled via Edge Function with service role
       },
     });
     

@@ -46,11 +46,12 @@ export function Tasks() {
 
   const fetchTasks = async () => {
     try {
+      // Use left join to include standalone tasks (where project_id is NULL)
       let query = supabase
         .from('tasks')
         .select(`
           *,
-          projects!tasks_project_id_fkey (*)
+          projects!left (*)
         `)
         .order('created_at', { ascending: false });
 
@@ -125,6 +126,12 @@ export function Tasks() {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!permissions.canCreateTasks) return;
+    
+    // Enforce assignment permission: only users with canAssignTasks can assign tasks
+    if (formData.assigned_to && !permissions.canAssignTasks) {
+      alert('You do not have permission to assign tasks. Only Admins and Super Admins can assign tasks.');
+      return;
+    }
 
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -134,7 +141,7 @@ export function Tasks() {
       const { error } = await supabase.from('tasks').insert({
         title: formData.title,
         description: formData.description || null,
-        project_id: formData.project_id,
+        project_id: formData.project_id || null, // Allow null for standalone tasks
         assigned_to: formData.assigned_to || null,
         due_date: formData.due_date || null,
         priority: formData.priority,
@@ -208,20 +215,22 @@ export function Tasks() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="project_id">Project</Label>
+                  <Label htmlFor="project_id">Project (Optional)</Label>
                   <Select
                     id="project_id"
                     value={formData.project_id}
                     onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                    required
                   >
-                    <option value="">Select a project</option>
+                    <option value="">Standalone Task (No Project)</option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
                       </option>
                     ))}
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Leave as "Standalone Task" for operational tasks not tied to a project
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="assigned_to">Assign To</Label>

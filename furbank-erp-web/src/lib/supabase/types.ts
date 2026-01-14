@@ -126,7 +126,7 @@ export interface Database {
       tasks: {
         Row: {
           id: string;
-          project_id: string;
+          project_id: string | null; // Nullable: allows standalone tasks not associated with any project
           title: string;
           description: string | null;
           status: string;
@@ -144,7 +144,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          project_id: string;
+          project_id?: string | null; // Optional: can be null for standalone tasks
           title: string;
           description?: string | null;
           status?: string;
@@ -162,7 +162,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          project_id?: string;
+          project_id?: string | null; // Can be set to null to make task standalone
           title?: string;
           description?: string | null;
           status?: string;

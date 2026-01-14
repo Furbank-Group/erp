@@ -44,12 +44,12 @@ export function TaskDetail() {
   const fetchTask = async () => {
     if (!id) return;
     try {
-      // Use join query to get project data (respects RLS policies)
+      // Use left join to handle standalone tasks (where project_id is NULL)
       const { data, error } = await supabase
         .from('tasks')
         .select(`
           *,
-          projects!tasks_project_id_fkey (*)
+          projects!left (*)
         `)
         .eq('id', id)
         .single();
@@ -58,6 +58,7 @@ export function TaskDetail() {
       setTask(data);
 
       // Use the joined project data (it respects RLS policies)
+      // For standalone tasks, project will be null
       const taskData = data as any;
       if (taskData && taskData.projects) {
         setProject(taskData.projects);
@@ -69,6 +70,9 @@ export function TaskDetail() {
           .eq('id', taskData.project_id)
           .single();
         setProject(projectData ?? null);
+      } else {
+        // Standalone task - no project
+        setProject(null);
       }
 
       // Fetch review requester and reviewer
@@ -456,8 +460,10 @@ export function TaskDetail() {
             ← Back to Tasks
           </Button>
           <h1 className="text-3xl font-bold mt-2">{task.title}</h1>
-          {project && (
+          {project ? (
             <p className="text-muted-foreground">Project: {project.name}</p>
+          ) : (
+            <p className="text-muted-foreground italic">Standalone Task (No Project)</p>
           )}
         </div>
       </div>

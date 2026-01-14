@@ -379,10 +379,13 @@ export function Users() {
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                 >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  <option value="user">User (Staff)</option>
+                  <option value="admin">Admin (Task Capturer/Uploader)</option>
                   <option value="super_admin">Super Admin</option>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  User: Cannot assign tasks. Admin: Can capture and assign tasks. Super Admin: Full access.
+                </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -550,10 +553,10 @@ export function Users() {
                             <Select
                               value={role?.name ?? ''}
                               onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                              className="w-40"
+                              className="w-48"
                             >
-                              <option value="user">User</option>
-                              <option value="admin">Admin</option>
+                              <option value="user">User (Staff)</option>
+                              <option value="admin">Admin (Task Capturer)</option>
                               <option value="super_admin">Super Admin</option>
                             </Select>
                             <Button
