@@ -247,36 +247,36 @@ export function Dashboard() {
                           }`}
                         >
                           <div className="flex flex-col gap-2 mb-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
-                                  <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate">{project.project_name}</h3>
-                                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                            <div className="flex items-start justify-between gap-2 min-h-[2.5rem]">
+                              <div className="flex-1 min-w-0 pr-2">
+                                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1 sm:gap-1.5">
+                                  <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate leading-tight">{project.project_name}</h3>
+                                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 w-fit ${statusDisplay.bgColor} ${statusDisplay.color}`}>
                                     <StatusIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                    <span className="hidden xs:inline">{statusDisplay.label}</span>
+                                    <span className="hidden sm:inline">{statusDisplay.label}</span>
                                   </div>
                                 </div>
                               </div>
-                              <div className="text-right shrink-0">
-                                <div className="text-xs text-muted-foreground">Completion</div>
-                                <div className="text-xs sm:text-sm md:text-base font-semibold">{project.completion_percentage}%</div>
+                              <div className="text-right shrink-0 flex-shrink-0">
+                                <div className="text-xs text-muted-foreground whitespace-nowrap">Completion</div>
+                                <div className="text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap">{project.completion_percentage}%</div>
                               </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs">
-                            <div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-2 sm:grid sm:grid-cols-4 sm:gap-2 sm:gap-3 text-xs">
+                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
                               <div className="text-muted-foreground text-xs">Total</div>
                               <div className="font-medium text-xs sm:text-sm">{project.total_tasks}</div>
                             </div>
-                            <div>
+                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
                               <div className="text-muted-foreground text-xs">Open</div>
                               <div className="font-medium text-xs sm:text-sm">{project.open_tasks}</div>
                             </div>
-                            <div className={hasOverdue ? 'text-red-700 dark:text-red-400' : ''}>
+                            <div className={`flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0 ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
                               <div className="text-muted-foreground text-xs">Overdue</div>
                               <div className="font-semibold text-xs sm:text-sm">{project.overdue_tasks}</div>
                             </div>
-                            <div>
+                            <div className="flex-1 min-w-[calc(50%-0.375rem)] sm:min-w-0">
                               <div className="text-muted-foreground text-xs">Closed</div>
                               <div className="font-medium text-xs sm:text-sm">{project.closed_tasks}</div>
                             </div>
