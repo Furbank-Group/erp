@@ -1,19 +1,37 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
-import type { Project, Task, UserWithRole } from '@/lib/supabase/types';
+import type { Project, Task, UserWithRole, ProjectStatus } from '@/lib/supabase/types';
+import { ProjectStatus as ProjectStatusEnum } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 import { getProjectStatusDisplay, getTaskStatusDisplay, getPriorityDisplay } from '@/lib/utils/taskDisplay';
+import { updateProject, closeProject, reopenProject } from '@/lib/services/projectService';
+import { isTaskClosed } from '@/lib/services/projectService';
 import { Link } from 'react-router-dom';
+import { Edit, Save, X } from 'lucide-react';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { permissions } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    status: 'active' as ProjectStatus,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -22,6 +40,16 @@ export function ProjectDetail() {
       fetchMembers();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (project) {
+      setEditFormData({
+        name: project.name,
+        description: project.description ?? '',
+        status: project.status as ProjectStatus,
+      });
+    }
+  }, [project]);
 
   const fetchProject = async () => {
     if (!id) return;
@@ -92,6 +120,97 @@ export function ProjectDetail() {
     }
   };
 
+  const handleEdit = () => {
+    setIsEditing(true);
+    setError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setError(null);
+    if (project) {
+      setEditFormData({
+        name: project.name,
+        description: project.description ?? '',
+        status: project.status as ProjectStatus,
+      });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!project || !id) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      // If status is changing to closed, use close function
+      if (editFormData.status === ProjectStatusEnum.CLOSED && project.status !== ProjectStatusEnum.CLOSED) {
+        const result = await closeProject(id);
+        if (!result.success) {
+          setError(result.error ?? 'Failed to close project');
+          setSaving(false);
+          return;
+        }
+        // Update other fields if changed
+        if (editFormData.name !== project.name || editFormData.description !== (project.description ?? '')) {
+          const { error: updateError } = await updateProject({
+            projectId: id,
+            name: editFormData.name,
+            description: editFormData.description,
+          });
+          if (updateError) {
+            setError(updateError.message);
+            setSaving(false);
+            return;
+          }
+        }
+      } else if (editFormData.status === ProjectStatusEnum.ACTIVE && project.status === ProjectStatusEnum.CLOSED) {
+        // Reopening project
+        const result = await reopenProject(id);
+        if (!result.success) {
+          setError(result.error ?? 'Failed to reopen project');
+          setSaving(false);
+          return;
+        }
+        // Update other fields if changed
+        if (editFormData.name !== project.name || editFormData.description !== (project.description ?? '')) {
+          const { error: updateError } = await updateProject({
+            projectId: id,
+            name: editFormData.name,
+            description: editFormData.description,
+          });
+          if (updateError) {
+            setError(updateError.message);
+            setSaving(false);
+            return;
+          }
+        }
+      } else {
+        // Regular update
+        const { error: updateError } = await updateProject({
+          projectId: id,
+          name: editFormData.name,
+          description: editFormData.description,
+          status: editFormData.status,
+        });
+        if (updateError) {
+          setError(updateError.message);
+          setSaving(false);
+          return;
+        }
+      }
+
+      setIsEditing(false);
+      await fetchProject();
+      await fetchTasks(); // Refresh tasks to show closure status
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update project');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-8">Loading project...</div>;
   }
@@ -108,6 +227,9 @@ export function ProjectDetail() {
   const statusDisplay = getProjectStatusDisplay(project.status);
   const StatusIcon = statusDisplay.icon;
 
+  const isProjectClosed = project.status === ProjectStatusEnum.CLOSED;
+  const closedTasksCount = tasks.filter(t => isTaskClosed(t)).length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -121,9 +243,99 @@ export function ProjectDetail() {
               <StatusIcon className="h-4 w-4" />
               <span className="text-sm font-medium">{statusDisplay.label}</span>
             </div>
+            {isProjectClosed && closedTasksCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                ({closedTasksCount} task{closedTasksCount !== 1 ? 's' : ''} closed)
+              </span>
+            )}
           </div>
         </div>
+        {permissions.canEditProjects && (
+          <Button
+            variant={isEditing ? 'outline' : 'default'}
+            onClick={isEditing ? handleCancelEdit : handleEdit}
+            disabled={saving}
+          >
+            {isEditing ? (
+              <>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Project
+              </>
+            )}
+          </Button>
+        )}
       </div>
+
+      {isEditing && permissions.canEditProjects && (
+        <Card className="border-2 border-primary">
+          <CardHeader>
+            <CardTitle>Edit Project</CardTitle>
+            <CardDescription>Update project details. Closing will cascade to all tasks.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Project Name</Label>
+              <Input
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Select
+                id="edit-status"
+                value={editFormData.status}
+                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as ProjectStatus })}
+              >
+                <option value={ProjectStatusEnum.ACTIVE}>Active</option>
+                <option value={ProjectStatusEnum.CLOSED}>Closed</option>
+                <option value={ProjectStatusEnum.COMPLETED}>Completed</option>
+                <option value={ProjectStatusEnum.ARCHIVED}>Archived</option>
+              </Select>
+              {editFormData.status === ProjectStatusEnum.CLOSED && project.status !== ProjectStatusEnum.CLOSED && (
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Closing this project will automatically close all linked tasks. Tasks can be reactivated when the project is reopened.
+                </p>
+              )}
+              {editFormData.status === ProjectStatusEnum.ACTIVE && project.status === ProjectStatusEnum.CLOSED && (
+                <p className="text-xs text-muted-foreground">
+                  ✓ Reopening this project will reactivate tasks that were closed due to project closure.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button variant="outline" onClick={handleCancelEdit} disabled={saving}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
@@ -153,6 +365,8 @@ export function ProjectDetail() {
                     const priorityDisplay = getPriorityDisplay(task.priority);
                     const TaskStatusIcon = taskStatusDisplay.icon;
                     const PriorityIcon = priorityDisplay.icon;
+                    const taskIsClosed = isTaskClosed(task);
+                    const closedByProject = (task as any).closed_reason === 'project_closed';
 
                     return (
                       <Link
@@ -161,17 +375,28 @@ export function ProjectDetail() {
                         className="block"
                       >
                         <div
-                          className="p-3 border rounded-lg hover:bg-accent hover:shadow-sm hover:scale-[1.01] transition-all duration-200 group"
+                          className={`p-3 border rounded-lg transition-all duration-200 group ${
+                            taskIsClosed 
+                              ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
+                              : 'hover:bg-accent hover:shadow-sm hover:scale-[1.01]'
+                          }`}
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium group-hover:text-primary transition-colors truncate">
+                              <h4 className={`text-sm font-medium truncate ${
+                                taskIsClosed ? 'text-muted-foreground' : 'group-hover:text-primary transition-colors'
+                              }`}>
                                 {task.title}
                               </h4>
                               {task.description && (
                                 <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
                                   {task.description}
+                                </p>
+                              )}
+                              {taskIsClosed && closedByProject && (
+                                <p className="text-xs text-muted-foreground italic mt-1">
+                                  Closed because project is closed
                                 </p>
                               )}
                             </div>

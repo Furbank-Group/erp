@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Link } from 'react-router-dom';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
+import { isTaskClosed } from '@/lib/services/projectService';
 
 interface TaskWithRelations extends Task {
   projects?: Project;
@@ -292,6 +293,8 @@ export function Tasks() {
             const dueDateDisplay = getDueDateDisplay(task.due_date);
             const PriorityIcon = priorityDisplay.icon;
             const StatusIcon = statusDisplay.icon;
+            const taskIsClosed = isTaskClosed(task);
+            const closedByProject = (task as any).closed_reason === 'project_closed';
 
             return (
               <Link
@@ -300,7 +303,11 @@ export function Tasks() {
                 className="block"
               >
                 <Card
-                  className={`hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer border-l-4 ${priorityDisplay.borderColor} group`}
+                  className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group ${
+                    taskIsClosed 
+                      ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
+                      : 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
+                  }`}
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between">

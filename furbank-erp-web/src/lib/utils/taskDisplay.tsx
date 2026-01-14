@@ -100,6 +100,13 @@ export function getTaskStatusDisplay(status: string): StatusDisplay {
         bgColor: 'bg-green-100',
         icon: CheckCircle2,
       };
+    case TaskStatus.CLOSED:
+      return {
+        label: 'Closed',
+        color: 'text-gray-700',
+        bgColor: 'bg-gray-200',
+        icon: Archive,
+      };
     default:
       return {
         label: status.replace('_', ' '),
@@ -126,6 +133,13 @@ export function getProjectStatusDisplay(status: string): ProjectStatusDisplay {
         color: 'text-green-600',
         bgColor: 'bg-green-100',
         icon: Activity,
+      };
+    case ProjectStatus.CLOSED:
+      return {
+        label: 'Closed',
+        color: 'text-red-600',
+        bgColor: 'bg-red-100',
+        icon: Archive,
       };
     case ProjectStatus.COMPLETED:
       return {

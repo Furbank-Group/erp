@@ -138,6 +138,9 @@ export interface Database {
           reviewed_by: string | null;
           reviewed_at: string | null;
           review_comments: string | null;
+          closed_reason: string | null; // 'manual' or 'project_closed'
+          closed_at: string | null;
+          status_before_closure: string | null; // Status before closure, used for reopening
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -156,6 +159,9 @@ export interface Database {
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           review_comments?: string | null;
+          closed_reason?: string | null;
+          closed_at?: string | null;
+          status_before_closure?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -174,6 +180,9 @@ export interface Database {
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           review_comments?: string | null;
+          closed_reason?: string | null;
+          closed_at?: string | null;
+          status_before_closure?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -375,6 +384,34 @@ export interface Database {
           active_users: number;
         };
       };
+      close_project_with_cascade: {
+        Args: {
+          p_project_id: string;
+        };
+        Returns: {
+          success: boolean;
+          project_id: string;
+          closed_tasks_count: number;
+          error?: string;
+        };
+      };
+      reopen_project_with_reactivate: {
+        Args: {
+          p_project_id: string;
+        };
+        Returns: {
+          success: boolean;
+          project_id: string;
+          reactivated_tasks_count: number;
+          error?: string;
+        };
+      };
+      is_task_closed: {
+        Args: {
+          p_task_id: string;
+        };
+        Returns: boolean;
+      };
     };
   };
 }
@@ -401,6 +438,7 @@ export const TaskStatus = {
   IN_PROGRESS: 'in_progress',
   BLOCKED: 'blocked',
   DONE: 'done',
+  CLOSED: 'closed', // Task closed - read-only for users
 } as const;
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
@@ -424,6 +462,7 @@ export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 export const ProjectStatus = {
   ACTIVE: 'active',
+  CLOSED: 'closed', // Project closed - cascades to tasks
   COMPLETED: 'completed',
   ARCHIVED: 'archived',
 } as const;

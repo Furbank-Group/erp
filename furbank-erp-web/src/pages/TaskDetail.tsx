@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
+import { isTaskClosed } from '@/lib/services/projectService';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
@@ -452,6 +453,10 @@ export function TaskDetail() {
     );
   }
 
+  const taskIsClosed = task ? isTaskClosed(task) : false;
+  const closedByProject = task ? (task as any).closed_reason === 'project_closed' : false;
+  const closedAt = task ? (task as any).closed_at : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -467,6 +472,29 @@ export function TaskDetail() {
           )}
         </div>
       </div>
+
+      {taskIsClosed && (
+        <Card className="border-2 border-gray-400 bg-gray-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-gray-600" />
+              <div>
+                <p className="font-medium text-gray-900">This task is closed</p>
+                <p className="text-sm text-muted-foreground">
+                  {closedByProject 
+                    ? 'Task was closed because the project is closed. It will be reactivated when the project is reopened.'
+                    : 'This task has been manually closed and is now read-only.'}
+                  {closedAt && (
+                    <span className="block mt-1">
+                      Closed on {new Date(closedAt).toLocaleString()}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
@@ -487,15 +515,22 @@ export function TaskDetail() {
                 <CardTitle>Comments</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Add a comment..."
-                    rows={3}
-                  />
-                  <Button onClick={handleAddComment}>Post</Button>
-                </div>
+                {!taskIsClosed && (
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment..."
+                      rows={3}
+                    />
+                    <Button onClick={handleAddComment}>Post</Button>
+                  </div>
+                )}
+                {taskIsClosed && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    Comments are disabled for closed tasks.
+                  </div>
+                )}
                 <div className="space-y-4">
                   {comments.map((comment, index) => (
                     <div
@@ -537,15 +572,22 @@ export function TaskDetail() {
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Textarea
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Add a note..."
-                    rows={3}
-                  />
-                  <Button onClick={handleAddNote}>Add Note</Button>
-                </div>
+                {!taskIsClosed && (
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Add a note..."
+                      rows={3}
+                    />
+                    <Button onClick={handleAddNote}>Add Note</Button>
+                  </div>
+                )}
+                {taskIsClosed && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    Notes are disabled for closed tasks.
+                  </div>
+                )}
                 <div className="space-y-4">
                   {notes.map((note, index) => (
                     <div
@@ -575,15 +617,22 @@ export function TaskDetail() {
                 <CardTitle>Files</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    type="file"
-                    onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                  />
-                  <Button onClick={handleFileUpload} disabled={!selectedFile}>
-                    Upload
-                  </Button>
-                </div>
+                {!taskIsClosed && (
+                  <div className="flex gap-2">
+                    <Input
+                      type="file"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                    />
+                    <Button onClick={handleFileUpload} disabled={!selectedFile}>
+                      Upload
+                    </Button>
+                  </div>
+                )}
+                {taskIsClosed && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    File uploads are disabled for closed tasks.
+                  </div>
+                )}
                 <div className="space-y-2">
                   {files.map((file) => {
                     const fileUrl = supabase.storage
@@ -616,10 +665,10 @@ export function TaskDetail() {
               <CardTitle>Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Status: Users can update if they have canUpdateTaskStatus or canEditTasks */}
+              {/* Status: Users can update if they have canUpdateTaskStatus or canEditTasks, but not if task is closed */}
               <div className="space-y-2">
                 <Label>Status</Label>
-                {permissions.canUpdateTaskStatus || permissions.canEditTasks ? (
+                {(permissions.canUpdateTaskStatus || permissions.canEditTasks) && !taskIsClosed ? (
                   <Select
                     value={task.status}
                     onChange={(e) => handleUpdateTask('status', e.target.value)}
@@ -729,8 +778,8 @@ export function TaskDetail() {
                 </div>
               )}
 
-              {/* Staff: Request Review */}
-              {permissions.canRequestReview && !permissions.canReviewTasks && (
+              {/* Staff: Request Review - Disabled for closed tasks */}
+              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && (
                 <div>
                   {task.review_status === TaskReviewStatus.NONE ||
                   task.review_status === null ||
