@@ -64,7 +64,7 @@ export interface Permissions {
 export function getPermissions(roleName: string | null): Permissions {
   switch (roleName) {
     case UserRole.SUPER_ADMIN:
-      // Super Admin: Full system access
+      // Super Admin: Full system access, but tasks are still immutable
       return {
         canViewAllProjects: true,
         canCreateProjects: true,
@@ -72,15 +72,15 @@ export function getPermissions(roleName: string | null): Permissions {
         canDeleteProjects: true,
         canViewAllTasks: true,
         canCreateTasks: true,
-        canEditTasks: true,
+        canEditTasks: false, // Tasks are immutable after creation (even for Super Admin)
         canAssignTasks: true, // Can assign tasks to anyone including themselves
-        canDeleteTasks: true,
+        canDeleteTasks: false, // Tasks cannot be deleted
         canAddComments: true,
         canDeleteComments: true,
         canAddNotes: true,
         canUploadFiles: true,
         canRequestReview: true,
-        canReviewTasks: true,
+        canReviewTasks: true, // Only Super Admin can review
         canViewAllUsers: true,
         canManageUsers: false, // System-level permissions not changeable
         canViewReports: true,
@@ -96,15 +96,15 @@ export function getPermissions(roleName: string | null): Permissions {
         canDeleteProjects: false, // Only super_admin can delete
         canViewAllTasks: true,
         canCreateTasks: true,
-        canEditTasks: true,
+        canEditTasks: false, // Tasks are immutable after creation
         canAssignTasks: true, // Core responsibility: assigning tasks to users (including themselves)
-        canDeleteTasks: false, // Only super_admin can delete
+        canDeleteTasks: false, // Tasks cannot be deleted
         canAddComments: true,
         canDeleteComments: true,
         canAddNotes: true,
         canUploadFiles: true,
         canRequestReview: true,
-        canReviewTasks: true,
+        canReviewTasks: false, // Only Super Admin can review
         canViewAllUsers: true,
         canManageUsers: false,
         canViewReports: false, // Future feature
@@ -114,26 +114,27 @@ export function getPermissions(roleName: string | null): Permissions {
     case UserRole.USER:
     default:
       // User (Staff): Cannot assign tasks, can work on assigned tasks
+      // All users can VIEW all projects and tasks, but only assigned users can interact
       return {
-        canViewAllProjects: false, // Only assigned projects
-        canCreateProjects: false,
+        canViewAllProjects: true, // All users can view all projects
+        canCreateProjects: false, // Only Admin and Super Admin can create
         canEditProjects: false,
         canDeleteProjects: false,
-        canViewAllTasks: false, // Only assigned tasks
+        canViewAllTasks: true, // All users can view all tasks
         canCreateTasks: false,
-        canEditTasks: false,
+        canEditTasks: false, // Tasks are immutable after creation
         canAssignTasks: false, // Staff cannot assign tasks - this is enforced strictly
-        canDeleteTasks: false,
-        canAddComments: true,
+        canDeleteTasks: false, // Tasks cannot be deleted
+        canAddComments: true, // But only on assigned tasks (enforced at API/DB level)
         canDeleteComments: false, // Only admins can delete comments
-        canAddNotes: true,
-        canUploadFiles: true,
-        canRequestReview: true,
-        canReviewTasks: false, // Only admins and super_admins can review
+        canAddNotes: true, // But only on assigned tasks (enforced at API/DB level)
+        canUploadFiles: true, // But only on assigned tasks (enforced at API/DB level)
+        canRequestReview: true, // But only on assigned tasks (enforced at API/DB level)
+        canReviewTasks: false, // Only Super Admin can review
         canViewAllUsers: false,
         canManageUsers: false,
         canViewReports: false,
-        canUpdateTaskStatus: true, // Users can update status on assigned tasks
+        canUpdateTaskStatus: true, // Users can update status on assigned tasks only
       };
   }
 }

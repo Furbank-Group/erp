@@ -39,7 +39,11 @@ export function Projects() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!permissions.canCreateProjects) return;
+    // Only Admin and Super Admin can create projects
+    if (!permissions.canCreateProjects) {
+      alert('Only Admins and Super Admins can create projects.');
+      return;
+    }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();

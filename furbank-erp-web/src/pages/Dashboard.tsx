@@ -98,9 +98,9 @@ export function Dashboard() {
   // Common task metrics summary
   const taskMetrics = {
     total: stats.totalTasks ?? stats.myTasks ?? 0,
-    dueToday: stats.tasksDueToday,
-    overdue: stats.overdueTasks,
-    waitingReview: stats.tasksAwaitingReview,
+    dueToday: stats.tasksDueToday ?? 0,
+    overdue: stats.overdueTasks ?? 0,
+    waitingReview: stats.tasksAwaitingReview ?? 0,
     closed: stats.closedTasksCount ?? 0,
   };
 
@@ -124,42 +124,52 @@ export function Dashboard() {
           </Link>
         </div>
 
-        {/* Task Metrics Summary */}
+        {/* Task Metrics Summary - All clickable */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-3 md:mb-4">
-          <Card>
-            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Total</div>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
-            </CardContent>
-          </Card>
-          <Card className={taskMetrics.dueToday > 0 ? 'border-orange-500/50 dark:border-orange-400/50 bg-orange-50/50 dark:bg-orange-950/20' : ''}>
-            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Due Today</div>
-              <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.dueToday > 0 ? 'text-orange-700 dark:text-orange-400' : ''}`}>
-                {taskMetrics.dueToday}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className={taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}>
-            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Overdue</div>
-              <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
-                {taskMetrics.overdue}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Waiting Review</div>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.waitingReview}</div>
-            </CardContent>
-          </Card>
-          <Card className="col-span-2 sm:col-span-1">
-            <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-              <div className="text-xs text-muted-foreground mb-1">Closed</div>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
-            </CardContent>
-          </Card>
+          <Link to="/tasks" className="block">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Total</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/tasks?status=due_today" className="block">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.dueToday > 0 ? 'border-orange-500/50 dark:border-orange-400/50 bg-orange-50/50 dark:bg-orange-950/20' : ''}`}>
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Due Today</div>
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.dueToday > 0 ? 'text-orange-700 dark:text-orange-400' : ''}`}>
+                  {taskMetrics.dueToday}
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/tasks?status=overdue" className="block">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Overdue</div>
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
+                  {taskMetrics.overdue}
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/tasks?review_status=pending_review" className="block">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Pending Review</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.waitingReview}</div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/tasks?status=closed" className="block">
+            <Card className="col-span-2 sm:col-span-1 hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Closed</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         {/* Task Status Breakdown */}
@@ -175,42 +185,54 @@ export function Dashboard() {
                   const StatusIcon = statusDisplay.icon;
                   const hasUrgency = summary.overdue_count > 0 || summary.due_today_count > 0;
 
+                  // Map status to URL parameter
+                  const statusParam = summary.status === 'to_do' ? 'to_do' : 
+                                     summary.status === 'in_progress' ? 'in_progress' :
+                                     summary.status === 'blocked' ? 'blocked' :
+                                     summary.status === 'done' ? 'done' :
+                                     summary.status === 'closed' ? 'closed' : summary.status;
+
                   return (
-                    <div
+                    <Link
                       key={summary.status}
-                      className={`flex flex-col gap-2 p-2.5 sm:p-3 rounded-md border transition-colors ${
-                        hasUrgency 
-                          ? 'bg-accent/50 dark:bg-accent/20 border-border' 
-                          : 'bg-card border-border'
-                      }`}
+                      to={`/tasks?status=${statusParam}`}
+                      className="block"
                     >
-                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                        <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${statusDisplay.color}`} />
-                        <span className="text-xs sm:text-sm font-medium capitalize truncate">
-                          {summary.status.replace('_', ' ')}
-                        </span>
+                      <div
+                        className={`flex flex-col gap-2 p-2.5 sm:p-3 rounded-md border transition-colors hover:shadow-md hover:bg-accent/50 dark:hover:bg-accent/20 cursor-pointer ${
+                          hasUrgency 
+                            ? 'bg-accent/50 dark:bg-accent/20 border-border' 
+                            : 'bg-card border-border'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${statusDisplay.color}`} />
+                          <span className="text-xs sm:text-sm font-medium capitalize truncate">
+                            {summary.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs">
+                          {summary.overdue_count > 0 && (
+                            <span className="text-red-700 dark:text-red-400 font-semibold whitespace-nowrap">
+                              {summary.overdue_count} overdue
+                            </span>
+                          )}
+                          {summary.due_today_count > 0 && (
+                            <span className="text-orange-700 dark:text-orange-400 font-semibold whitespace-nowrap">
+                              {summary.due_today_count} due today
+                            </span>
+                          )}
+                          {summary.due_soon_count > 0 && (
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {summary.due_soon_count} due soon
+                            </span>
+                          )}
+                          <span className="text-foreground font-medium whitespace-nowrap ml-auto">
+                            {summary.total_count} total
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs">
-                        {summary.overdue_count > 0 && (
-                          <span className="text-red-700 dark:text-red-400 font-semibold whitespace-nowrap">
-                            {summary.overdue_count} overdue
-                          </span>
-                        )}
-                        {summary.due_today_count > 0 && (
-                          <span className="text-orange-700 dark:text-orange-400 font-semibold whitespace-nowrap">
-                            {summary.due_today_count} due today
-                          </span>
-                        )}
-                        {summary.due_soon_count > 0 && (
-                          <span className="text-muted-foreground whitespace-nowrap">
-                            {summary.due_soon_count} due soon
-                          </span>
-                        )}
-                        <span className="text-foreground font-medium whitespace-nowrap ml-auto">
-                          {summary.total_count} total
-                        </span>
-                      </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

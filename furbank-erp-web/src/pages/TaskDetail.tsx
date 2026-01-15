@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, TaskComment, TaskNote, TaskFile, Project, UserWithRole } from '@/lib/supabase/types';
-import { TaskStatus, TaskPriority, TaskReviewStatus } from '@/lib/supabase/types';
+import { TaskStatus, TaskReviewStatus, UserRole } from '@/lib/supabase/types';
 import { requestReview, approveTask, requestChanges } from '@/lib/services/taskReviewService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,14 +11,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { isTaskClosed } from '@/lib/services/projectService';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, permissions } = useAuth();
+  const { user, permissions, role } = useAuth();
   const [task, setTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
@@ -289,7 +289,7 @@ export function TaskDetail() {
 
       if (error) throw error;
 
-      // Fetch users separately
+      // Fetch users separately and generate signed URLs for files
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((f: any) => f.user_id).filter(Boolean))];
         const { data: usersData } = userIds.length > 0
@@ -298,10 +298,25 @@ export function TaskDetail() {
 
         const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
 
-        const filesWithUsers = data.map((file: any) => ({
-          ...file,
-          user: usersMap.get(file.user_id) ?? null,
-        }));
+        // Generate signed URLs for each file (required for private buckets)
+        const filesWithUsers = await Promise.all(
+          data.map(async (file: any) => {
+            const path = file.file_path.startsWith('task-files/') 
+              ? file.file_path.replace('task-files/', '') 
+              : file.file_path;
+            
+            // Generate signed URL (valid for 1 hour)
+            const { data: signedUrlData } = await supabase.storage
+              .from('task-files')
+              .createSignedUrl(path, 3600);
+            
+            return {
+              ...file,
+              user: usersMap.get(file.user_id) ?? null,
+              signedUrl: signedUrlData?.signedUrl ?? null,
+            };
+          })
+        );
 
         setFiles(filesWithUsers as any);
       } else {
@@ -384,7 +399,8 @@ export function TaskDetail() {
     try {
       const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${id}/${Date.now()}.${fileExt}`;
-      const filePath = `task-files/${fileName}`;
+      // Don't include bucket name in path - Supabase adds it automatically
+      const filePath = fileName;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
@@ -394,11 +410,12 @@ export function TaskDetail() {
       if (uploadError) throw uploadError;
 
       // Create file record
+      // Store path without bucket name (bucket is specified in .from() call)
       const { error: dbError } = await ((supabase.from('task_files') as any).insert({
         task_id: id,
         user_id: user.id,
         file_name: selectedFile.name,
-        file_path: filePath,
+        file_path: filePath, // Store path without bucket prefix
         file_size: selectedFile.size,
         mime_type: selectedFile.type,
         created_by: user.id,
@@ -415,27 +432,39 @@ export function TaskDetail() {
   };
 
   const handleUpdateTask = async (field: string, value: string) => {
-    if (!id) return;
+    if (!id || !user) return;
     
-    // Check permissions based on field
-    if (field === 'status' && !permissions.canUpdateTaskStatus && !permissions.canEditTasks) {
-      return;
-    }
-    if (field !== 'status' && !permissions.canEditTasks) {
+    // Enforce immutability: only status updates are allowed, and only by assigned user
+    if (field !== 'status') {
+      alert('Tasks cannot be edited after creation. Only status updates are allowed.');
       return;
     }
 
+    // Check if user is assigned to this task
+    if (task && task.assigned_to !== user.id) {
+      alert('Only the assigned user can update task status.');
+      return;
+    }
+
+    // Check permissions
+    if (!permissions.canUpdateTaskStatus) {
+      alert('You do not have permission to update task status.');
+      return;
+    }
+
+    // Use progress logging service for status updates
     try {
-      const { error } = await ((supabase
-        .from('tasks') as any)
-        .update({ [field]: value })
-        .eq('id', id) as any);
-
-      if (error) throw error;
+      const { addProgressLog } = await import('@/lib/services/taskProgressService');
+      const { error } = await addProgressLog(id, user.id, value as any);
+      
+      if (error) {
+        throw error;
+      }
+      
       fetchTask();
-    } catch (error) {
-      console.error('Error updating task:', error);
-      alert('Failed to update task');
+    } catch (error: any) {
+      console.error('Error updating task status:', error);
+      alert(error?.message ?? 'Failed to update task status');
     }
   };
 
@@ -518,8 +547,9 @@ export function TaskDetail() {
     }
 
     const statusMap = {
-      [TaskReviewStatus.WAITING_FOR_REVIEW]: { label: 'Waiting for Review', icon: Clock, color: 'text-yellow-600' },
-      [TaskReviewStatus.REVIEWED_APPROVED]: { label: 'Approved', icon: CheckCircle2, color: 'text-green-600' },
+      [TaskReviewStatus.PENDING_REVIEW]: { label: 'Pending Review', icon: Clock, color: 'text-yellow-600' },
+      [TaskReviewStatus.UNDER_REVIEW]: { label: 'Under Review', icon: Clock, color: 'text-blue-600' },
+      [TaskReviewStatus.REVIEWED_APPROVED]: { label: 'Reviewed / Approved', icon: CheckCircle2, color: 'text-green-600' },
       [TaskReviewStatus.CHANGES_REQUESTED]: { label: 'Changes Requested', icon: XCircle, color: 'text-red-600' },
     };
 
@@ -610,7 +640,7 @@ export function TaskDetail() {
                 <CardTitle>Comments</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (
+                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
                   <div className="flex gap-2">
                     <Textarea
                       value={newComment}
@@ -619,6 +649,11 @@ export function TaskDetail() {
                       rows={3}
                     />
                     <Button onClick={handleAddComment}>Post</Button>
+                  </div>
+                )}
+                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    Only the assigned user or Super Admin can add comments.
                   </div>
                 )}
                 {taskIsClosed && (
@@ -667,7 +702,7 @@ export function TaskDetail() {
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (
+                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
                   <div className="flex gap-2">
                     <Textarea
                       value={newNote}
@@ -676,6 +711,11 @@ export function TaskDetail() {
                       rows={3}
                     />
                     <Button onClick={handleAddNote}>Add Note</Button>
+                  </div>
+                )}
+                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    Only the assigned user or Super Admin can add notes.
                   </div>
                 )}
                 {taskIsClosed && (
@@ -710,17 +750,31 @@ export function TaskDetail() {
             <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">
               <CardHeader>
                 <CardTitle>Files</CardTitle>
+                <CardDescription>
+                  Allowed file types: PDF, JPEG, PNG, DOC, DOCX, XLS, XLSX
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (
-                  <div className="flex gap-2">
-                    <Input
-                      type="file"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                    />
-                    <Button onClick={handleFileUpload} disabled={!selectedFile}>
-                      Upload
-                    </Button>
+                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        type="file"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                      />
+                      <Button onClick={handleFileUpload} disabled={!selectedFile}>
+                        Upload
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Only PDF, JPEG, PNG, DOC, DOCX, XLS, and XLSX files are allowed.
+                    </p>
+                  </div>
+                )}
+                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                    Only the assigned user or Super Admin can upload files.
                   </div>
                 )}
                 {taskIsClosed && (
@@ -728,24 +782,79 @@ export function TaskDetail() {
                     File uploads are disabled for closed tasks.
                   </div>
                 )}
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {files.map((file) => {
-                    const fileUrl = supabase.storage
+                    // Use signed URL if available (for private buckets), otherwise fallback to public URL
+                    const path = file.file_path.startsWith('task-files/') 
+                      ? file.file_path.replace('task-files/', '') 
+                      : file.file_path;
+                    const fileUrl = (file as any).signedUrl ?? supabase.storage
                       .from('task-files')
-                      .getPublicUrl(file.file_path).data.publicUrl;
+                      .getPublicUrl(path).data.publicUrl;
+                    
+                    // Determine file type
+                    const fileExt = file.file_name.split('.').pop()?.toLowerCase() ?? '';
+                    const isImage = ['jpg', 'jpeg', 'png'].includes(fileExt);
+                    const isPdf = fileExt === 'pdf';
+                    const isDoc = ['doc', 'docx'].includes(fileExt);
+                    const isXls = ['xls', 'xlsx'].includes(fileExt);
+                    
+                    // Get file icon
+                    let FileIcon = File;
+                    if (isPdf) FileIcon = FileText;
+                    else if (isDoc) FileIcon = FileText;
+                    else if (isXls) FileIcon = FileText;
+                    else if (isImage) FileIcon = Image;
                     
                     return (
-                      <div key={file.id} className="flex items-center justify-between p-2 border rounded hover:bg-accent/50 transition-colors duration-200">
-                        <span className="text-sm">{file.file_name}</span>
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline hover:text-primary/80 transition-colors"
-                        >
-                          Download
-                        </a>
-                      </div>
+                      <a
+                        key={file.id}
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group relative block border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200 bg-card"
+                      >
+                        {isImage ? (
+                          // Show thumbnail for images
+                          <div className="aspect-square relative bg-muted">
+                            <img
+                              src={fileUrl}
+                              alt={file.file_name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                // Fallback to icon if image fails to load
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).parentElement!.innerHTML = `
+                                  <div class="w-full h-full flex items-center justify-center">
+                                    <svg class="w-12 h-12 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                  </div>
+                                `;
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <Download className="h-6 w-6 text-white drop-shadow-lg" />
+                            </div>
+                          </div>
+                        ) : (
+                          // Show icon for non-image files
+                          <div className="aspect-square flex flex-col items-center justify-center bg-muted p-4 group-hover:bg-accent/50 transition-colors">
+                            <FileIcon className="h-12 w-12 text-muted-foreground group-hover:text-primary transition-colors mb-2" />
+                            <Download className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2" />
+                          </div>
+                        )}
+                        <div className="p-2 border-t bg-card">
+                          <p className="text-xs font-medium truncate" title={file.file_name}>
+                            {file.file_name}
+                          </p>
+                          {file.file_size && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {(file.file_size / 1024).toFixed(1)} KB
+                            </p>
+                          )}
+                        </div>
+                      </a>
                     );
                   })}
                 </div>
@@ -807,10 +916,10 @@ export function TaskDetail() {
                 </div>
               )}
               
-              {/* Status: Users can update if they have canUpdateTaskStatus or canEditTasks, but not if task is closed */}
+              {/* Status: Only assigned user can update, and only if task is not closed */}
               <div className="space-y-2">
                 <Label>Status</Label>
-                {(permissions.canUpdateTaskStatus || permissions.canEditTasks) && !taskIsClosed ? (
+                {permissions.canUpdateTaskStatus && task.assigned_to === user?.id && !taskIsClosed ? (
                   <Select
                     value={task.status}
                     onChange={(e) => handleUpdateTask('status', e.target.value)}
@@ -832,48 +941,38 @@ export function TaskDetail() {
                     );
                   })()
                 )}
-              </div>
-              
-              {/* Priority: Only admins can edit */}
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                {permissions.canEditTasks ? (
-                  <Select
-                    value={task.priority}
-                    onChange={(e) => handleUpdateTask('priority', e.target.value)}
-                  >
-                    <option value={TaskPriority.LOW}>Low</option>
-                    <option value={TaskPriority.MEDIUM}>Medium</option>
-                    <option value={TaskPriority.HIGH}>High</option>
-                    <option value={TaskPriority.URGENT}>Urgent</option>
-                  </Select>
-                ) : (
-                  (() => {
-                    const priorityDisplay = getPriorityDisplay(task.priority);
-                    const PriorityIcon = priorityDisplay.icon;
-                    return (
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
-                        <PriorityIcon className="h-4 w-4" />
-                        <span className="text-sm font-medium">{priorityDisplay.label}</span>
-                      </div>
-                    );
-                  })()
+                {task.assigned_to !== user?.id && (
+                  <p className="text-xs text-muted-foreground">
+                    Only the assigned user can update status
+                  </p>
                 )}
               </div>
               
-              {/* Due Date: Admins can edit */}
+              {/* Priority: Immutable after creation */}
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                {(() => {
+                  const priorityDisplay = getPriorityDisplay(task.priority);
+                  const PriorityIcon = priorityDisplay.icon;
+                  return (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
+                      <PriorityIcon className="h-4 w-4" />
+                      <span className="text-sm font-medium">{priorityDisplay.label}</span>
+                    </div>
+                  );
+                })()}
+                <p className="text-xs text-muted-foreground">
+                  Priority cannot be changed after task creation
+                </p>
+              </div>
+              
+              {/* Due Date: Immutable after creation */}
               <div className="space-y-2">
                 <Label>Due Date</Label>
-                {permissions.canEditTasks ? (
-                  <Input
-                    type="datetime-local"
-                    value={task.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : ''}
-                    onChange={(e) => {
-                      const value = e.target.value ? new Date(e.target.value).toISOString() : null;
-                      handleUpdateTask('due_date', value ?? '');
-                    }}
-                  />
-                ) : renderDueDateDisplay()}
+                {renderDueDateDisplay()}
+                <p className="text-xs text-muted-foreground">
+                  Due date cannot be changed after task creation
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -920,8 +1019,8 @@ export function TaskDetail() {
                 </div>
               )}
 
-              {/* Staff: Request Review - Disabled for closed tasks */}
-              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && (
+              {/* Staff: Request Review - Only assigned user, disabled for closed tasks */}
+              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && task.assigned_to === user?.id && (
                 <div>
                   {task.review_status === TaskReviewStatus.NONE ||
                   task.review_status === null ||
@@ -936,14 +1035,19 @@ export function TaskDetail() {
                     </Button>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Review has been requested. Waiting for admin approval.
+                      Review has been requested. Waiting for Super Admin approval.
                     </p>
                   )}
                 </div>
               )}
+              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && task.assigned_to !== user?.id && (
+                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  Only the assigned user can request review.
+                </div>
+              )}
 
-              {/* Admin/Consultant: Review Actions */}
-              {permissions.canReviewTasks && task.review_status === TaskReviewStatus.WAITING_FOR_REVIEW && (
+              {/* Super Admin: Review Actions */}
+              {permissions.canReviewTasks && task.review_status === TaskReviewStatus.PENDING_REVIEW && (
                 <div className="space-y-3">
                   <Textarea
                     value={reviewComment}
@@ -973,9 +1077,15 @@ export function TaskDetail() {
                   </div>
                 </div>
               )}
+              {permissions.canReviewTasks && task.review_status === TaskReviewStatus.UNDER_REVIEW && (
+                <p className="text-sm text-muted-foreground">
+                  This task is currently under review.
+                </p>
+              )}
 
               {permissions.canReviewTasks &&
-                task.review_status !== TaskReviewStatus.WAITING_FOR_REVIEW &&
+                task.review_status !== TaskReviewStatus.PENDING_REVIEW &&
+                task.review_status !== TaskReviewStatus.UNDER_REVIEW &&
                 task.review_status !== TaskReviewStatus.NONE &&
                 task.review_status !== null && (
                   <p className="text-sm text-muted-foreground">

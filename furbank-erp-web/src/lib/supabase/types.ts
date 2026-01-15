@@ -319,6 +319,35 @@ export interface Database {
           created_by?: string | null;
         };
       };
+      task_progress_log: {
+        Row: {
+          id: string;
+          task_id: string;
+          user_id: string;
+          status: string;
+          progress_note: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          user_id: string;
+          status: string;
+          progress_note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          user_id?: string;
+          status?: string;
+          progress_note?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+      };
     };
     Functions: {
       create_my_user_record: {
@@ -466,6 +495,7 @@ export type Task = Database['public']['Tables']['tasks']['Row'];
 export type TaskComment = Database['public']['Tables']['task_comments']['Row'];
 export type TaskNote = Database['public']['Tables']['task_notes']['Row'];
 export type TaskFile = Database['public']['Tables']['task_files']['Row'];
+export type TaskProgressLog = Database['public']['Tables']['task_progress_log']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
 
 // Extended types with relations
@@ -512,7 +542,8 @@ export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 
 export const TaskReviewStatus = {
   NONE: 'none',
-  WAITING_FOR_REVIEW: 'waiting_for_review',
+  PENDING_REVIEW: 'pending_review',
+  UNDER_REVIEW: 'under_review',
   REVIEWED_APPROVED: 'reviewed_approved',
   CHANGES_REQUESTED: 'changes_requested',
 } as const;

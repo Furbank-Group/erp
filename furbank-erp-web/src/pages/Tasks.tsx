@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 
 type AppUser = UserWithRole;
-import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
+import { TaskStatus, TaskPriority, TaskReviewStatus } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,12 +22,14 @@ interface TaskWithRelations extends Task {
 }
 
 export function Tasks() {
-  const { user, permissions } = useAuth();
+  const { permissions } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed'>('all');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -37,13 +40,33 @@ export function Tasks() {
     status: 'to_do' as TaskStatus,
   });
 
+  // Initialize tab from URL params
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const reviewStatusParam = searchParams.get('review_status');
+    
+    if (statusParam === 'closed' || statusParam === 'done') {
+      setActiveTab('completed');
+    } else if (statusParam === 'in_progress') {
+      setActiveTab('in_progress');
+    } else if (statusParam === 'to_do') {
+      setActiveTab('new');
+    } else if (statusParam === 'due_today' || statusParam === 'overdue' || statusParam === 'blocked') {
+      setActiveTab('all');
+    } else if (reviewStatusParam === 'pending_review' || reviewStatusParam === 'under_review') {
+      setActiveTab('all');
+    } else {
+      setActiveTab('all');
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchTasks();
     if (permissions.canCreateTasks) {
       fetchProjects();
       fetchUsers();
     }
-  }, [permissions.canCreateTasks]);
+  }, [permissions.canCreateTasks, searchParams]);
 
   const fetchTasks = async () => {
     try {
@@ -53,13 +76,52 @@ export function Tasks() {
         .select(`
           *,
           projects!left (*)
-        `)
-        .order('created_at', { ascending: false });
+        `);
 
-      // Staff can only see assigned tasks
-      if (!permissions.canViewAllTasks && user) {
-        query = query.eq('assigned_to', user.id);
+      // Apply filters from URL params
+      const statusParam = searchParams.get('status');
+      const reviewStatusParam = searchParams.get('review_status');
+      
+      if (statusParam === 'closed') {
+        query = query.eq('status', TaskStatus.CLOSED);
+      } else if (statusParam === 'to_do') {
+        query = query.eq('status', TaskStatus.TO_DO);
+      } else if (statusParam === 'in_progress') {
+        query = query.eq('status', TaskStatus.IN_PROGRESS);
+      } else if (statusParam === 'blocked') {
+        query = query.eq('status', TaskStatus.BLOCKED);
+      } else if (statusParam === 'done') {
+        query = query.eq('status', TaskStatus.DONE);
+      } else if (statusParam === 'due_today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        query = query
+          .gte('due_date', today.toISOString())
+          .lt('due_date', tomorrow.toISOString())
+          .neq('status', TaskStatus.CLOSED);
+      } else if (statusParam === 'overdue') {
+        const now = new Date().toISOString();
+        query = query
+          .lt('due_date', now)
+          .neq('status', TaskStatus.CLOSED)
+          .neq('status', TaskStatus.DONE);
+      } else if (activeTab === 'new') {
+        query = query.eq('status', TaskStatus.TO_DO);
+      } else if (activeTab === 'in_progress') {
+        query = query.eq('status', TaskStatus.IN_PROGRESS);
+      } else if (activeTab === 'completed') {
+        query = query.in('status', [TaskStatus.DONE, TaskStatus.CLOSED]);
       }
+
+      if (reviewStatusParam === 'pending_review') {
+        query = query.eq('review_status', TaskReviewStatus.PENDING_REVIEW);
+      } else if (reviewStatusParam === 'under_review') {
+        query = query.eq('review_status', TaskReviewStatus.UNDER_REVIEW);
+      }
+
+      query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
 
@@ -134,6 +196,12 @@ export function Tasks() {
       return;
     }
 
+    // Enforce single assignee constraint
+    if (formData.assigned_to && formData.assigned_to.split(',').length > 1) {
+      alert('A task can only be assigned to one user.');
+      return;
+    }
+
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('Not authenticated');
@@ -143,7 +211,7 @@ export function Tasks() {
         title: formData.title,
         description: formData.description || null,
         project_id: formData.project_id || null, // Allow null for standalone tasks
-        assigned_to: formData.assigned_to || null,
+        assigned_to: formData.assigned_to || null, // Single assignee only
         due_date: formData.due_date || null,
         priority: formData.priority,
         status: formData.status,
@@ -177,14 +245,68 @@ export function Tasks() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">
-          {permissions.canViewAllTasks ? 'All Tasks' : 'My Tasks'}
-        </h1>
+        <h1 className="text-3xl font-bold">Tasks</h1>
         {permissions.canCreateTasks && (
           <Button onClick={() => setShowCreateForm(!showCreateForm)}>
             {showCreateForm ? 'Cancel' : 'New Task'}
           </Button>
         )}
+      </div>
+
+      {/* Tabs for filtering */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => {
+            setActiveTab('all');
+            setSearchParams({});
+          }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'all'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          All Tasks
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('new');
+            setSearchParams({});
+          }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'new'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          New Tasks
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('in_progress');
+            setSearchParams({});
+          }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'in_progress'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Work In Progress
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('completed');
+            setSearchParams({});
+          }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'completed'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Completed Tasks
+        </button>
       </div>
 
       {showCreateForm && permissions.canCreateTasks && (

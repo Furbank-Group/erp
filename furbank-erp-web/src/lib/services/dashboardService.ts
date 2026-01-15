@@ -89,20 +89,39 @@ export async function getSuperAdminDashboardStats(): Promise<{
       if ((error as any).code === '42883' || errorMessage.includes('does not exist') || (error as any).status === 400) {
         return {
           data: null,
-          error: new Error('Dashboard RPC functions not found. Please run migrations 007-010 in Supabase SQL Editor.'),
+          error: new Error('Dashboard RPC functions not found. Please run migrations 010, 020, and 022 in Supabase SQL Editor.'),
         };
       }
       return { data: null, error: error as Error };
     }
 
-    const stats = data as {
+    // Handle both TABLE return type (array) and JSON return type (object)
+    let stats: {
       total_projects: number;
       total_tasks: number;
       tasks_due_today: number;
       overdue_tasks: number;
       tasks_awaiting_review: number;
-      task_status_distribution: { status: string; count: number }[];
+      task_status_distribution?: { status: string; count: number }[];
     };
+
+    if (Array.isArray(data) && (data as any[]).length > 0) {
+      // Function returns TABLE (array of rows) - take first row
+      stats = (data as any[])[0] as typeof stats;
+    } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // Function returns JSON (single object)
+      stats = data as typeof stats;
+    } else {
+      // Fallback to zeros if data is unexpected
+      stats = {
+        total_projects: 0,
+        total_tasks: 0,
+        tasks_due_today: 0,
+        overdue_tasks: 0,
+        tasks_awaiting_review: 0,
+        task_status_distribution: [],
+      };
+    }
 
     // Fetch enhanced data
     // @ts-expect-error - Supabase type inference issue with strict TypeScript
@@ -133,7 +152,7 @@ export async function getSuperAdminDashboardStats(): Promise<{
         tasksDueToday: stats.tasks_due_today,
         overdueTasks: stats.overdue_tasks,
         tasksAwaitingReview: stats.tasks_awaiting_review,
-        taskStatusDistribution: stats.task_status_distribution,
+        taskStatusDistribution: stats.task_status_distribution ?? [],
         projectHealth: (projectHealth as ProjectHealth[] | null) ?? [],
         userWorkload: (userWorkload as UserWorkload[] | null) ?? [],
         taskUrgencySummary: (taskUrgency as TaskUrgencySummary[] | null) ?? [],
@@ -173,18 +192,19 @@ export async function getAdminDashboardStats(): Promise<{
       if ((error as any).code === '42883' || errorMessage.includes('does not exist') || (error as any).status === 400) {
         return {
           data: null,
-          error: new Error('Dashboard RPC functions not found. Please run migrations 007-010 in Supabase SQL Editor.'),
+          error: new Error('Dashboard RPC functions not found. Please run migrations 010, 020, and 022 in Supabase SQL Editor.'),
         };
       }
       return { data: null, error: error as Error };
     }
 
-    const stats = data as {
+    // Handle both TABLE return type (array) and JSON return type (object)
+    let stats: {
       active_projects: number;
       tasks_due_today: number;
       overdue_tasks: number;
       tasks_awaiting_review: number;
-      recently_updated_tasks: Array<{
+      recently_updated_tasks?: Array<{
         id: string;
         title: string;
         status: string;
@@ -192,8 +212,25 @@ export async function getAdminDashboardStats(): Promise<{
       }>;
     };
 
+    if (Array.isArray(data) && (data as any[]).length > 0) {
+      // Function returns TABLE (array of rows) - take first row
+      stats = (data as any[])[0] as typeof stats;
+    } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // Function returns JSON (single object)
+      stats = data as typeof stats;
+    } else {
+      // Fallback to zeros if data is unexpected
+      stats = {
+        active_projects: 0,
+        tasks_due_today: 0,
+        overdue_tasks: 0,
+        tasks_awaiting_review: 0,
+        recently_updated_tasks: [],
+      };
+    }
+
     // Fetch full task details for recently updated tasks
-    const taskIds = stats.recently_updated_tasks.map((t) => t.id);
+    const taskIds = (stats.recently_updated_tasks ?? []).map((t) => t.id);
     let recentlyUpdatedTasks: Task[] = [];
 
     if (taskIds.length > 0) {
@@ -202,7 +239,7 @@ export async function getAdminDashboardStats(): Promise<{
         .select('*')
         .in('id', taskIds);
 
-      if (!tasksError && tasksData) {
+      if (!tasksError && tasksData && stats.recently_updated_tasks) {
         // Preserve order from RPC result
         const taskMap = new Map((tasksData as any).map((t: any) => [t.id, t]));
         recentlyUpdatedTasks = stats.recently_updated_tasks
@@ -239,7 +276,7 @@ export async function getAdminDashboardStats(): Promise<{
         tasksDueToday: stats.tasks_due_today,
         overdueTasks: stats.overdue_tasks,
         tasksAwaitingReview: stats.tasks_awaiting_review,
-        recentlyUpdatedTasks,
+        recentlyUpdatedTasks: (stats.recently_updated_tasks && stats.recently_updated_tasks.length > 0) ? recentlyUpdatedTasks : [],
         projectHealth: (projectHealth as ProjectHealth[] | null) ?? [],
         userWorkload: (userWorkload as UserWorkload[] | null) ?? [],
         taskUrgencySummary: (taskUrgency as TaskUrgencySummary[] | null) ?? [],
@@ -294,13 +331,31 @@ export async function getStaffDashboardStats(): Promise<{
       return { data: null, error: error as Error };
     }
 
-    const stats = data as {
+    // Handle both TABLE return type (array) and JSON return type (object)
+    let stats: {
       my_tasks: number;
       tasks_due_today: number;
       overdue_tasks: number;
       tasks_awaiting_action: number;
       tasks_submitted_for_review: number;
     };
+
+    if (Array.isArray(data) && data.length > 0) {
+      // Function returns TABLE (array of rows) - take first row
+      stats = data[0] as typeof stats;
+    } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // Function returns JSON (single object)
+      stats = data as typeof stats;
+    } else {
+      // Fallback to zeros if data is unexpected
+      stats = {
+        my_tasks: 0,
+        tasks_due_today: 0,
+        overdue_tasks: 0,
+        tasks_awaiting_action: 0,
+        tasks_submitted_for_review: 0,
+      };
+    }
 
     // Fetch enhanced data for staff
     // @ts-expect-error - Supabase type inference issue with strict TypeScript
@@ -320,6 +375,13 @@ export async function getStaffDashboardStats(): Promise<{
       .eq('assigned_to', user.id)
       .eq('status', 'closed');
 
+    // For staff, tasksAwaitingReview should be tasks assigned to them that are pending review
+    const { count: tasksAwaitingReviewCount } = await supabase
+      .from('tasks')
+      .select('*', { count: 'exact', head: true })
+      .eq('assigned_to', user.id)
+      .in('review_status', ['pending_review', 'under_review']);
+
     return {
       data: {
         myTasks: stats.my_tasks,
@@ -327,7 +389,7 @@ export async function getStaffDashboardStats(): Promise<{
         overdueTasks: stats.overdue_tasks,
         tasksAwaitingAction: stats.tasks_awaiting_action,
         tasksSubmittedForReview: stats.tasks_submitted_for_review,
-        tasksAwaitingReview: 0, // Not applicable for staff
+        tasksAwaitingReview: tasksAwaitingReviewCount ?? 0, // Tasks assigned to staff that are pending review
         projectHealth: ((projectHealth as unknown) as ProjectHealth[] | null) ?? [],
         taskUrgencySummary: ((taskUrgency as unknown) as TaskUrgencySummary[] | null) ?? [],
         closedTasksCount: closedTasksCount ?? 0,
@@ -389,7 +451,7 @@ async function getStaffDashboardStatsFallback(userId: string): Promise<{
         .from('tasks')
         .select('*', { count: 'exact', head: true })
         .eq('review_requested_by', userId)
-        .eq('review_status', 'waiting_for_review');
+        .in('review_status', ['pending_review', 'under_review']);
       tasksSubmittedForReview = count ?? 0;
     } catch {
       // Column might not exist if migrations not run

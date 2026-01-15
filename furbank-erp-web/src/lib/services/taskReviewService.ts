@@ -18,7 +18,7 @@ export async function requestReview(
     const { error: updateError } = await ((supabase
       .from('tasks') as any)
       .update({
-        review_status: TaskReviewStatus.WAITING_FOR_REVIEW,
+        review_status: TaskReviewStatus.PENDING_REVIEW,
         review_requested_by: userId,
       })
       .eq('id', taskId) as any);
@@ -54,7 +54,7 @@ export async function approveTask(
   comments?: string
 ): Promise<{ error: Error | null }> {
   try {
-    // Update task review status
+    // Update to approved
     const { error: updateError } = await ((supabase
       .from('tasks') as any)
       .update({
