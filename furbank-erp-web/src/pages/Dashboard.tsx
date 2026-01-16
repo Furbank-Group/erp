@@ -181,7 +181,17 @@ export function Dashboard() {
             <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
               {/* Vertical layout for small screens, horizontal for large screens */}
               <div className="space-y-2 lg:space-y-0 lg:flex lg:gap-3">
-                {stats.taskUrgencySummary.map((summary) => {
+                {[...stats.taskUrgencySummary].sort((a, b) => {
+                  // Custom sort order: blocked, to_do, in_progress, done, closed
+                  const order: Record<string, number> = {
+                    'blocked': 1,
+                    'to_do': 2,
+                    'in_progress': 3,
+                    'done': 4,
+                    'closed': 5,
+                  };
+                  return (order[a.status] ?? 99) - (order[b.status] ?? 99);
+                }).map((summary) => {
                   const statusDisplay = getTaskStatusDisplay(summary.status);
                   const StatusIcon = statusDisplay.icon;
                   const hasUrgency = summary.overdue_count > 0 || summary.due_today_count > 0;
