@@ -426,7 +426,7 @@ export function Dashboard() {
               <CardDescription className="text-xs md:text-sm">Task distribution and completion status</CardDescription>
             </CardHeader>
             <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
-              <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-2 sm:space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3">
                 {stats.projectHealth
                   .filter(p => p.project_status !== 'closed')
                   .map((project) => {
@@ -441,7 +441,7 @@ export function Dashboard() {
                         className="block"
                       >
                         <div
-                          className={`p-2.5 sm:p-3 md:p-4 rounded-md border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors ${
+                          className={`p-2.5 sm:p-3 md:p-4 lg:p-4 rounded-md border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors ${
                             hasOverdue 
                               ? 'border-orange-500/50 dark:border-orange-400/50 bg-orange-50/30 dark:bg-orange-950/20' 
                               : 'border-border'
