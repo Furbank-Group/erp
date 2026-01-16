@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client';
 import { TaskStatus } from '@/lib/supabase/types';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
  * Task Progress Service
@@ -78,4 +79,34 @@ export async function getProgressLogs(
   } catch (error) {
     return { data: null, error: error as Error };
   }
+}
+
+/**
+ * Subscribe to real-time progress log updates for a task
+ * Returns unsubscribe function
+ */
+export function subscribeToProgressLogs(
+  taskId: string,
+  callback: (log: TaskProgressLog) => void
+): () => void {
+  const channel: RealtimeChannel = supabase
+    .channel(`task_progress_log:${taskId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'task_progress_log',
+        filter: `task_id=eq.${taskId}`,
+      },
+      (payload) => {
+        callback(payload.new as TaskProgressLog);
+      }
+    )
+    .subscribe();
+
+  // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }

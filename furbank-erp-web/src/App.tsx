@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SyncProvider } from './contexts/SyncContext';
+import { RealtimeProvider } from './contexts/RealtimeContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -129,11 +130,13 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <SyncProvider>
-            <NotificationProvider>
-              <AppRoutes />
-            </NotificationProvider>
-          </SyncProvider>
+          <RealtimeProvider>
+            <SyncProvider>
+              <NotificationProvider>
+                <AppRoutes />
+              </NotificationProvider>
+            </SyncProvider>
+          </RealtimeProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

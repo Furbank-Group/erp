@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
-import type { Project, Task, UserWithRole, ProjectStatus } from '@/lib/supabase/types';
+import type { Task, UserWithRole, ProjectStatus } from '@/lib/supabase/types';
 import { ProjectStatus as ProjectStatusEnum } from '@/lib/supabase/types';
+import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
+import { useRealtimeTasks } from '@/hooks/useRealtimeTasks';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,11 +22,8 @@ export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { permissions } = useAuth();
-  const [project, setProject] = useState<Project | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<UserWithRole[]>([]);
   const [assignedUsers, setAssignedUsers] = useState<UserWithRole[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -34,10 +33,17 @@ export function ProjectDetail() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Use real-time hooks
+  const { projects: projectList, loading: projectsLoading } = useRealtimeProjects();
+  const project = projectList.find((p) => p.id === id) ?? null;
+  
+  const { tasks: taskList, loading: tasksLoading } = useRealtimeTasks(id ? { projectId: id } : undefined);
+  const tasks = taskList.map((t) => t as Task);
+  
+  const loading = projectsLoading || tasksLoading;
+
   useEffect(() => {
     if (id) {
-      fetchProject();
-      fetchTasks();
       fetchMembers();
       fetchAssignedUsers();
     }
@@ -52,40 +58,6 @@ export function ProjectDetail() {
       });
     }
   }, [project]);
-
-  const fetchProject = async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      setProject(data);
-    } catch (error) {
-      console.error('Error fetching project:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTasks = async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('project_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTasks(data ?? []);
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-    }
-  };
 
   const fetchMembers = async () => {
     if (!id) return;
@@ -260,8 +232,7 @@ export function ProjectDetail() {
       }
 
       setIsEditing(false);
-      await fetchProject();
-      await fetchTasks(); // Refresh tasks to show closure status
+      // Project and tasks will update automatically via real-time subscription
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update project');
     } finally {

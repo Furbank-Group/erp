@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,6 +7,8 @@ import {
   getStaffDashboardStats,
   type DashboardStats,
 } from '@/lib/services/dashboardService';
+import { useRealtimeTasks } from '@/hooks/useRealtimeTasks';
+import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserRole } from '@/lib/supabase/types';
 import { Link } from 'react-router-dom';
@@ -20,6 +22,35 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Subscribe to real-time task and project changes
+  const { tasks: allTasks } = useRealtimeTasks();
+  const { projects: allProjects } = useRealtimeProjects();
+
+  // Debounced metric recalculation
+  const recalculateMetrics = useCallback(async () => {
+    if (!user || !stats) return;
+
+    try {
+      let result;
+      if (role === UserRole.SUPER_ADMIN) {
+        result = await getSuperAdminDashboardStats();
+      } else if (role === UserRole.ADMIN) {
+        result = await getAdminDashboardStats();
+      } else {
+        result = await getStaffDashboardStats();
+      }
+
+      if (result.error) {
+        console.error('Error recalculating metrics:', result.error);
+      } else if (result.data) {
+        setStats(result.data);
+      }
+    } catch (err) {
+      console.error('Error recalculating metrics:', err);
+    }
+  }, [user, role, stats]);
+
+  // Initial fetch
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -54,6 +85,17 @@ export function Dashboard() {
 
     fetchStats();
   }, [user, role, navigate]);
+
+  // Recalculate metrics when tasks or projects change (debounced)
+  useEffect(() => {
+    if (!stats || loading) return;
+
+    const timer = setTimeout(() => {
+      recalculateMetrics();
+    }, 500); // Debounce by 500ms
+
+    return () => clearTimeout(timer);
+  }, [allTasks.length, allProjects.length, recalculateMetrics, stats, loading]);
 
   if (loading) {
     return (

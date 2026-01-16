@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
-import type { Project } from '@/lib/supabase/types';
+import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,30 +12,11 @@ import { getProjectStatusDisplay } from '@/lib/utils/taskDisplay';
 
 export function Projects() {
   const { permissions } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setProjects(data ?? []);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use real-time projects hook
+  const { projects, loading } = useRealtimeProjects();
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +41,7 @@ export function Projects() {
 
       setFormData({ name: '', description: '' });
       setShowCreateForm(false);
-      fetchProjects();
+      // Projects will update automatically via real-time subscription
     } catch (error) {
       console.error('Error creating project:', error);
       alert('Failed to create project');

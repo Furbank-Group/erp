@@ -1,33 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
-import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
+import type { Project, UserWithRole } from '@/lib/supabase/types';
+import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
+import { useRealtimeTasks, type TaskFilters } from '@/hooks/useRealtimeTasks';
 
 type AppUser = UserWithRole;
-import { TaskStatus, TaskPriority, TaskReviewStatus } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { Link } from 'react-router-dom';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { isTaskClosed } from '@/lib/services/projectService';
-
-interface TaskWithRelations extends Task {
-  projects?: Project;
-  assigned_user?: UserWithRole;
-}
 
 export function Tasks() {
   const { permissions } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed'>('all');
   const [formData, setFormData] = useState({
@@ -39,6 +32,34 @@ export function Tasks() {
     priority: 'medium' as TaskPriority,
     status: 'to_do' as TaskStatus,
   });
+
+  // Build filters from URL params and active tab
+  const taskFilters = useMemo<TaskFilters>(() => {
+    const statusParam = searchParams.get('status');
+    const reviewStatusParam = searchParams.get('review_status');
+    
+    const filters: TaskFilters = {};
+    
+    // Determine status filter
+    if (statusParam) {
+      filters.status = statusParam;
+    } else if (activeTab === 'new') {
+      filters.status = 'to_do';
+    } else if (activeTab === 'in_progress') {
+      filters.status = 'in_progress';
+    } else if (activeTab === 'completed') {
+      filters.status = 'closed'; // Will be handled specially in the hook
+    }
+    
+    if (reviewStatusParam) {
+      filters.reviewStatus = reviewStatusParam;
+    }
+    
+    return filters;
+  }, [searchParams, activeTab]);
+
+  // Use real-time tasks hook
+  const { tasks, loading } = useRealtimeTasks(taskFilters);
 
   // Initialize tab from URL params
   useEffect(() => {
@@ -61,100 +82,11 @@ export function Tasks() {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchTasks();
     if (permissions.canCreateTasks) {
       fetchProjects();
       fetchUsers();
     }
-  }, [permissions.canCreateTasks, searchParams]);
-
-  const fetchTasks = async () => {
-    try {
-      // Use left join to include standalone tasks (where project_id is NULL)
-      let query = supabase
-        .from('tasks')
-        .select(`
-          *,
-          projects!left (*)
-        `);
-
-      // Apply filters from URL params
-      const statusParam = searchParams.get('status');
-      const reviewStatusParam = searchParams.get('review_status');
-      
-      if (statusParam === 'closed') {
-        query = query.eq('status', TaskStatus.CLOSED);
-      } else if (statusParam === 'to_do') {
-        query = query.eq('status', TaskStatus.TO_DO);
-      } else if (statusParam === 'in_progress') {
-        query = query.eq('status', TaskStatus.IN_PROGRESS);
-      } else if (statusParam === 'blocked') {
-        query = query.eq('status', TaskStatus.BLOCKED);
-      } else if (statusParam === 'done') {
-        query = query.eq('status', TaskStatus.DONE);
-      } else if (statusParam === 'due_today') {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        query = query
-          .gte('due_date', today.toISOString())
-          .lt('due_date', tomorrow.toISOString())
-          .neq('status', TaskStatus.CLOSED);
-      } else if (statusParam === 'overdue') {
-        const now = new Date().toISOString();
-        query = query
-          .lt('due_date', now)
-          .neq('status', TaskStatus.CLOSED)
-          .neq('status', TaskStatus.DONE);
-      } else if (activeTab === 'new') {
-        query = query.eq('status', TaskStatus.TO_DO);
-      } else if (activeTab === 'in_progress') {
-        query = query.eq('status', TaskStatus.IN_PROGRESS);
-      } else if (activeTab === 'completed') {
-        query = query.in('status', [TaskStatus.DONE, TaskStatus.CLOSED]);
-      }
-
-      if (reviewStatusParam === 'pending_review') {
-        query = query.eq('review_status', TaskReviewStatus.PENDING_REVIEW);
-      } else if (reviewStatusParam === 'under_review') {
-        query = query.eq('review_status', TaskReviewStatus.UNDER_REVIEW);
-      }
-
-      query = query.order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      // Use joined project data from the query, and fetch users separately
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((t: any) => t.assigned_to).filter(Boolean))];
-        
-        // Fetch assigned users separately
-        const usersResult = userIds.length > 0
-          ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
-        
-        const usersMap = new Map((usersResult.data as any)?.map((u: any) => [u.id, u]) ?? []);
-        
-        // Use the joined project data from the query (it respects RLS policies)
-        const tasksWithRelations = data.map((task: any) => ({
-          ...task,
-          projects: task.projects ?? null,
-          assigned_user: task.assigned_to ? usersMap.get(task.assigned_to) ?? null : null,
-        }));
-        
-        setTasks(tasksWithRelations as TaskWithRelations[]);
-      } else {
-        setTasks([]);
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [permissions.canCreateTasks]);
 
   const fetchProjects = async () => {
     try {
@@ -230,7 +162,7 @@ export function Tasks() {
         status: TaskStatus.TO_DO,
       });
       setShowCreateForm(false);
-      fetchTasks();
+      // Tasks will update automatically via real-time subscription
     } catch (error) {
       console.error('Error creating task:', error);
       alert('Failed to create task');

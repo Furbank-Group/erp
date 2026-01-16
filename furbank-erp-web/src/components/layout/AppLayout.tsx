@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
 import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,6 +14,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-background flex">
       {/* Offline Indicator */}
       <OfflineIndicator />
+      
+      {/* Install Prompt */}
+      <InstallPrompt />
       
       {/* Desktop Sidebar */}
       <Sidebar />

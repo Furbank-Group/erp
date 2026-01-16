@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
-import type { Task, TaskComment, TaskNote, TaskFile, Project, UserWithRole } from '@/lib/supabase/types';
+import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskReviewStatus, UserRole } from '@/lib/supabase/types';
 import { requestReview, approveTask, requestChanges } from '@/lib/services/taskReviewService';
+import { useRealtimeTaskComments } from '@/hooks/useRealtimeTaskComments';
+import { useRealtimeTaskNotes } from '@/hooks/useRealtimeTaskNotes';
+import { useRealtimeTaskFiles } from '@/hooks/useRealtimeTaskFiles';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,14 +22,9 @@ export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, permissions, role } = useAuth();
-  const [task, setTask] = useState<Task | null>(null);
   const [project, setProject] = useState<Project | null>(null);
-  const [comments, setComments] = useState<TaskComment[]>([]);
-  const [notes, setNotes] = useState<TaskNote[]>([]);
-  const [files, setFiles] = useState<TaskFile[]>([]);
   const [assignedUser, setAssignedUser] = useState<UserWithRole | null>(null);
   const [taskUsers, setTaskUsers] = useState<UserWithRole[]>([]);
-  const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [newNote, setNewNote] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -35,138 +33,195 @@ export function TaskDetail() {
   const [reviewedBy, setReviewedBy] = useState<UserWithRole | null>(null);
   const [loadingReview, setLoadingReview] = useState(false);
 
+  // Fetch single task with real-time updates
+  const [task, setTask] = useState<Task | null>(null);
+  const [taskLoading, setTaskLoading] = useState(true);
+  
   useEffect(() => {
-    if (id) {
-      fetchTask();
-      fetchComments();
-      fetchNotes();
-      fetchFiles();
+    if (!id) {
+      setTaskLoading(false);
+      return;
     }
+    
+    // Initial fetch
+    supabase
+      .from('tasks')
+      .select(`
+        *,
+        projects!left (*)
+      `)
+      .eq('id', id)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error fetching task:', error);
+          setTaskLoading(false);
+          return;
+        }
+        setTask(data);
+        setTaskLoading(false);
+      });
+    
+    // Subscribe to task updates
+    const channel = supabase
+      .channel(`task:${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            // Refetch task with relations
+            supabase
+              .from('tasks')
+              .select(`
+                *,
+                projects!left (*)
+              `)
+              .eq('id', id)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  setTask(data);
+                }
+              });
+          } else if (payload.eventType === 'DELETE') {
+            setTask(null);
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
+  
+  // Use real-time hooks for comments, notes, and files
+  const { comments, loading: commentsLoading } = useRealtimeTaskComments(id ?? '');
+  const { notes, loading: notesLoading } = useRealtimeTaskNotes(id ?? '');
+  const { files, loading: filesLoading } = useRealtimeTaskFiles(id ?? '');
+  
+  // Combine all loading states
+  const loading = taskLoading || commentsLoading || notesLoading || filesLoading;
 
-  // Fetch task users when task, comments, notes, or files are loaded
+  // Fetch project, assigned user, and review users when task changes
   useEffect(() => {
-    if (task && id) {
-      fetchTaskUsers();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, comments.length, notes.length, files.length, id]);
+    if (!task || !id) return;
 
-  const fetchTask = async () => {
-    if (!id) return;
-    try {
-      // Use left join to handle standalone tasks (where project_id is NULL)
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          projects!left (*)
-        `)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      setTask(data);
-
-      // Use the joined project data (it respects RLS policies)
-      // For standalone tasks, project will be null
-      const taskData = data as any;
-      if (taskData && taskData.projects) {
+    // Extract project from task
+    const taskData = task as any;
+    if (taskData.projects) {
         setProject(taskData.projects);
-      } else if (taskData?.project_id) {
-        // Fallback: try to fetch project separately if join didn't return it
-        const { data: projectData } = await supabase
+    } else if (taskData.project_id) {
+      // Fallback: fetch project separately
+      supabase
           .from('projects')
           .select('*')
           .eq('id', taskData.project_id)
-          .single();
+        .single()
+        .then(({ data: projectData }) => {
         setProject(projectData ?? null);
+        });
       } else {
-        // Standalone task - no project
         setProject(null);
       }
 
+    // Fetch assigned user
+    if (task.assigned_to) {
+      supabase
+        .from('users')
+        .select('*')
+        .eq('id', task.assigned_to)
+        .single()
+        .then(({ data: assignedUserData }) => {
+          if (assignedUserData) {
+            supabase
+              .from('roles')
+              .select('*')
+              .eq('id', (assignedUserData as any).role_id)
+              .single()
+              .then(({ data: assignedUserRole }) => {
+                setAssignedUser({ ...(assignedUserData as any), roles: assignedUserRole ?? undefined } as UserWithRole);
+              });
+          }
+        });
+    } else {
+      setAssignedUser(null);
+    }
+
       // Fetch review requester and reviewer
-      if (taskData.review_requested_by) {
-        const { data: requesterData } = await supabase
+    if (task.review_requested_by) {
+      supabase
           .from('users')
           .select('*')
-          .eq('id', taskData.review_requested_by)
-          .single();
+        .eq('id', task.review_requested_by)
+        .single()
+        .then(({ data: requesterData }) => {
         if (requesterData) {
-          const { data: requesterRole } = await supabase
+            supabase
             .from('roles')
             .select('*')
             .eq('id', (requesterData as any).role_id)
-            .single();
+              .single()
+              .then(({ data: requesterRole }) => {
           setReviewRequestedBy({ ...(requesterData as any), roles: requesterRole ?? undefined } as UserWithRole);
+              });
         }
+        });
+    } else {
+      setReviewRequestedBy(null);
       }
 
-      if (taskData.reviewed_by) {
-        const { data: reviewerData } = await supabase
+    if (task.reviewed_by) {
+      supabase
           .from('users')
           .select('*')
-          .eq('id', taskData.reviewed_by)
-          .single();
+        .eq('id', task.reviewed_by)
+        .single()
+        .then(({ data: reviewerData }) => {
         if (reviewerData) {
-          const { data: reviewerRole } = await supabase
+            supabase
             .from('roles')
             .select('*')
             .eq('id', (reviewerData as any).role_id)
-            .single();
+              .single()
+              .then(({ data: reviewerRole }) => {
           setReviewedBy({ ...(reviewerData as any), roles: reviewerRole ?? undefined } as UserWithRole);
-        }
-      }
-
-      // Fetch assigned user
-      if (taskData.assigned_to) {
-        const { data: assignedUserData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', taskData.assigned_to)
-          .single();
-        if (assignedUserData) {
-          const { data: assignedUserRole } = await supabase
-            .from('roles')
-            .select('*')
-            .eq('id', (assignedUserData as any).role_id)
-            .single();
-          setAssignedUser({ ...(assignedUserData as any), roles: assignedUserRole ?? undefined } as UserWithRole);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching task:', error);
-    } finally {
-      setLoading(false);
+              });
+          }
+        });
+    } else {
+      setReviewedBy(null);
     }
-  };
+  }, [task, id]);
 
-  const fetchTaskUsers = async () => {
-    if (!id || !task) return;
-    try {
+  // Fetch task users when task, comments, notes, or files change
+  useEffect(() => {
+    if (!task || !id) return;
+    
       const userIds = new Set<string>();
       
-      // Add assigned user if exists
       if (task.assigned_to) {
         userIds.add(task.assigned_to);
       }
       
-      // Add user IDs from comments
       comments.forEach((comment) => {
         if ((comment as any).user_id) {
           userIds.add((comment as any).user_id);
         }
       });
       
-      // Add user IDs from notes
       notes.forEach((note) => {
         if ((note as any).user_id) {
           userIds.add((note as any).user_id);
         }
       });
       
-      // Add user IDs from files
       files.forEach((file) => {
         if ((file as any).user_id) {
           userIds.add((file as any).user_id);
@@ -175,157 +230,40 @@ export function TaskDetail() {
 
       if (userIds.size > 0) {
         const userIdsArray = Array.from(userIds);
-        const { data: usersData, error } = await supabase
+      supabase
           .from('users')
           .select('*')
-          .in('id', userIdsArray);
-
-        if (error) throw error;
+        .in('id', userIdsArray)
+        .then(({ data: usersData, error }) => {
+          if (error) {
+            console.error('Error fetching task users:', error);
+            setTaskUsers([]);
+            return;
+          }
 
         if (usersData && usersData.length > 0) {
-          // Fetch roles for each user
-          const usersWithRoles = await Promise.all(
-            usersData.map(async (user: any) => {
-              if (user.role_id) {
+            Promise.all(
+              usersData.map(async (userData: any) => {
+                if (userData.role_id) {
                 const { data: roleData } = await supabase
                   .from('roles')
                   .select('*')
-                  .eq('id', user.role_id)
+                    .eq('id', userData.role_id)
                   .single();
-                return { ...user, roles: roleData ?? undefined } as UserWithRole;
+                  return { ...userData, roles: roleData ?? undefined } as UserWithRole;
               }
-              return { ...user } as UserWithRole;
+                return { ...userData } as UserWithRole;
             })
-          );
-          setTaskUsers(usersWithRoles);
+            ).then(setTaskUsers);
         } else {
           setTaskUsers([]);
         }
+        });
       } else {
         setTaskUsers([]);
       }
-    } catch (error) {
-      console.error('Error fetching task users:', error);
-      setTaskUsers([]);
-    }
-  };
+  }, [task, comments, notes, files, id]);
 
-  const fetchComments = async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await supabase
-        .from('task_comments')
-        .select('*')
-        .eq('task_id', id)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      // Fetch users separately
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((c: any) => c.user_id).filter(Boolean))];
-        const { data: usersData } = userIds.length > 0
-          ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
-
-        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
-
-        const commentsWithUsers = data.map((comment: any) => ({
-          ...comment,
-          user: usersMap.get(comment.user_id) ?? null,
-        }));
-
-        setComments(commentsWithUsers as any);
-      } else {
-        setComments([]);
-      }
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-    }
-  };
-
-  const fetchNotes = async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await supabase
-        .from('task_notes')
-        .select('*')
-        .eq('task_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch users separately
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((n: any) => n.user_id).filter(Boolean))];
-        const { data: usersData } = userIds.length > 0
-          ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
-
-        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
-
-        const notesWithUsers = data.map((note: any) => ({
-          ...note,
-          user: usersMap.get(note.user_id) ?? null,
-        }));
-
-        setNotes(notesWithUsers as any);
-      } else {
-        setNotes([]);
-      }
-    } catch (error) {
-      console.error('Error fetching notes:', error);
-    }
-  };
-
-  const fetchFiles = async () => {
-    if (!id) return;
-    try {
-      const { data, error } = await supabase
-        .from('task_files')
-        .select('*')
-        .eq('task_id', id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch users separately and generate signed URLs for files
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((f: any) => f.user_id).filter(Boolean))];
-        const { data: usersData } = userIds.length > 0
-          ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
-
-        const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
-
-        // Generate signed URLs for each file (required for private buckets)
-        const filesWithUsers = await Promise.all(
-          data.map(async (file: any) => {
-            const path = file.file_path.startsWith('task-files/') 
-              ? file.file_path.replace('task-files/', '') 
-              : file.file_path;
-            
-            // Generate signed URL (valid for 1 hour)
-            const { data: signedUrlData } = await supabase.storage
-              .from('task-files')
-              .createSignedUrl(path, 3600);
-            
-            return {
-              ...file,
-              user: usersMap.get(file.user_id) ?? null,
-              signedUrl: signedUrlData?.signedUrl ?? null,
-            };
-          })
-        );
-
-        setFiles(filesWithUsers as any);
-      } else {
-        setFiles([]);
-      }
-    } catch (error) {
-      console.error('Error fetching files:', error);
-    }
-  };
 
   const handleAddComment = async () => {
     if (!id || !newComment.trim() || !user) return;
@@ -344,7 +282,7 @@ export function TaskDetail() {
       }
 
       setNewComment('');
-      fetchComments();
+      // Comments will update automatically via real-time subscription
     } catch (error: any) {
       console.error('Error adding comment:', error);
       alert(`Failed to add comment: ${error?.message ?? 'Unknown error'}`);
@@ -367,7 +305,7 @@ export function TaskDetail() {
         return;
       }
 
-      fetchComments();
+      // Comments will update automatically via real-time subscription
     } catch (error: any) {
       console.error('Error deleting comment:', error);
       alert(`Failed to delete comment: ${error?.message ?? 'Unknown error'}`);
@@ -386,7 +324,7 @@ export function TaskDetail() {
 
       if (error) throw error;
       setNewNote('');
-      fetchNotes();
+      // Notes will update automatically via real-time subscription
     } catch (error) {
       console.error('Error adding note:', error);
       alert('Failed to add note');
@@ -424,7 +362,7 @@ export function TaskDetail() {
       if (dbError) throw dbError;
 
       setSelectedFile(null);
-      fetchFiles();
+      // Files will update automatically via real-time subscription
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Failed to upload file');
@@ -461,7 +399,7 @@ export function TaskDetail() {
         throw error;
       }
       
-      fetchTask();
+      // Task will update automatically via real-time subscription
     } catch (error: any) {
       console.error('Error updating task status:', error);
       alert(error?.message ?? 'Failed to update task status');
@@ -475,7 +413,7 @@ export function TaskDetail() {
       setLoadingReview(true);
       const { error } = await requestReview(id, user.id);
       if (error) throw error;
-      await fetchTask();
+      // Task will update automatically via real-time subscription
       alert('Review requested successfully');
     } catch (error) {
       console.error('Error requesting review:', error);
@@ -493,7 +431,7 @@ export function TaskDetail() {
       const { error } = await approveTask(id, user.id, reviewComment || undefined);
       if (error) throw error;
       setReviewComment('');
-      await fetchTask();
+      // Task will update automatically via real-time subscription
       alert('Task approved successfully');
     } catch (error) {
       console.error('Error approving task:', error);
@@ -514,7 +452,7 @@ export function TaskDetail() {
       const { error } = await requestChanges(id, user.id, reviewComment);
       if (error) throw error;
       setReviewComment('');
-      await fetchTask();
+      // Task will update automatically via real-time subscription
       alert('Changes requested');
     } catch (error) {
       console.error('Error requesting changes:', error);
