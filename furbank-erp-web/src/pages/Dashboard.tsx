@@ -464,22 +464,22 @@ export function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 sm:gap-3 text-xs">
-                            <div className="min-w-0">
-                              <div className="text-muted-foreground text-xs">Total</div>
-                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</div>
+                          <div className="flex flex-col gap-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Total</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</span>
                             </div>
-                            <div className="min-w-0">
-                              <div className="text-muted-foreground text-xs">Open</div>
-                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Open</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</span>
                             </div>
-                            <div className={`min-w-0 ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
-                              <div className="text-muted-foreground text-xs">Overdue</div>
-                              <div className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</div>
+                            <div className={`flex items-center justify-between ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
+                              <span className="text-muted-foreground text-xs">Overdue</span>
+                              <span className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</span>
                             </div>
-                            <div className="min-w-0">
-                              <div className="text-muted-foreground text-xs">Closed</div>
-                              <div className="font-medium text-xs sm:text-sm tabular-nums">{project.closed_tasks}</div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Closed</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.closed_tasks}</span>
                             </div>
                           </div>
                         </div>
