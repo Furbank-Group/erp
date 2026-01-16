@@ -104,9 +104,6 @@ export function Dashboard() {
     closed: stats.closedTasksCount ?? 0,
   };
 
-  // Calculate due soon count from taskUrgencySummary
-  const dueSoon = stats.taskUrgencySummary?.reduce((sum, summary) => sum + (summary.due_soon_count ?? 0), 0) ?? 0;
-
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <div>
@@ -127,15 +124,13 @@ export function Dashboard() {
           </Link>
         </div>
 
-        {/* Urgency Cards - Overdue, Due Today, Due Soon - Always visible, evenly distributed */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 md:mb-4">
-          <Link to="/tasks?status=overdue" className="block">
-            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
+        {/* Task Metrics Summary - All clickable */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-3 md:mb-4">
+          <Link to="/tasks" className="block">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Overdue</div>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
-                  {taskMetrics.overdue}
-                </div>
+                <div className="text-xs text-muted-foreground mb-1">Total</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
               </CardContent>
             </Card>
           </Link>
@@ -149,25 +144,13 @@ export function Dashboard() {
               </CardContent>
             </Card>
           </Link>
-          <Link to="/tasks?status=due_soon" className="block">
-            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${dueSoon > 0 ? 'border-yellow-500/50 dark:border-yellow-400/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''}`}>
+          <Link to="/tasks?status=overdue" className="block">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Due Soon</div>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${dueSoon > 0 ? 'text-yellow-700 dark:text-yellow-400' : ''}`}>
-                  {dueSoon}
+                <div className="text-xs text-muted-foreground mb-1">Overdue</div>
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
+                  {taskMetrics.overdue}
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
-
-        {/* Additional Task Metrics - Total, Pending Review, Closed */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-3 md:mb-4">
-          <Link to="/tasks" className="block">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Total</div>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
               </CardContent>
             </Card>
           </Link>
@@ -180,7 +163,7 @@ export function Dashboard() {
             </Card>
           </Link>
           <Link to="/tasks?status=closed" className="block">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="col-span-2 sm:col-span-1 hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
                 <div className="text-xs text-muted-foreground mb-1">Closed</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
@@ -197,7 +180,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
               {/* Vertical layout for small screens, horizontal for large screens */}
-              <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-5 lg:gap-3">
+              <div className="space-y-2 lg:space-y-0 lg:flex lg:gap-3">
                 {stats.taskUrgencySummary.map((summary) => {
                   const statusDisplay = getTaskStatusDisplay(summary.status);
                   const StatusIcon = statusDisplay.icon;
@@ -214,7 +197,7 @@ export function Dashboard() {
                     <Link
                       key={summary.status}
                       to={`/tasks?status=${statusParam}`}
-                      className="block"
+                      className="block lg:flex-1"
                     >
                       <div
                         className={`flex flex-col lg:flex-col gap-2 lg:gap-3 p-2.5 sm:p-3 lg:p-4 rounded-md border transition-colors hover:shadow-md hover:bg-accent/50 dark:hover:bg-accent/20 cursor-pointer ${
@@ -245,38 +228,44 @@ export function Dashboard() {
                             </span>
                           </div>
                           
-                          {/* Urgency Indicators - Compact on large screens */}
+                          {/* Urgency Indicators - Always show all three, even if 0 */}
                           <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
-                            {summary.overdue_count > 0 && (
-                              <div className="flex items-center gap-1.5 lg:justify-between">
-                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                  Overdue
-                                </span>
-                                <span className="text-red-700 dark:text-red-400 font-bold text-xs lg:text-sm tabular-nums">
-                                  {summary.overdue_count}
-                                </span>
-                              </div>
-                            )}
-                            {summary.due_today_count > 0 && (
-                              <div className="flex items-center gap-1.5 lg:justify-between">
-                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                  Today
-                                </span>
-                                <span className="text-orange-700 dark:text-orange-400 font-bold text-xs lg:text-sm tabular-nums">
-                                  {summary.due_today_count}
-                                </span>
-                              </div>
-                            )}
-                            {summary.due_soon_count > 0 && (
-                              <div className="flex items-center gap-1.5 lg:justify-between">
-                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                  Soon
-                                </span>
-                                <span className="text-muted-foreground font-semibold text-xs lg:text-sm tabular-nums">
-                                  {summary.due_soon_count}
-                                </span>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1.5 lg:justify-between">
+                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                Overdue
+                              </span>
+                              <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                summary.overdue_count > 0 
+                                  ? 'text-red-700 dark:text-red-400' 
+                                  : 'text-muted-foreground opacity-60'
+                              }`}>
+                                {summary.overdue_count}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 lg:justify-between">
+                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                Today
+                              </span>
+                              <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                summary.due_today_count > 0 
+                                  ? 'text-orange-700 dark:text-orange-400' 
+                                  : 'text-muted-foreground opacity-60'
+                              }`}>
+                                {summary.due_today_count}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 lg:justify-between">
+                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                Soon
+                              </span>
+                              <span className={`font-semibold text-xs lg:text-sm tabular-nums ${
+                                summary.due_soon_count > 0 
+                                  ? 'text-foreground' 
+                                  : 'text-muted-foreground opacity-60'
+                              }`}>
+                                {summary.due_soon_count}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
