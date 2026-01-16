@@ -228,45 +228,96 @@ export function Dashboard() {
                             </span>
                           </div>
                           
-                          {/* Urgency Indicators - Always show all three, even if 0 */}
-                          <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
-                            <div className="flex items-center gap-1.5 lg:justify-between">
-                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                Overdue
-                              </span>
-                              <span className={`font-bold text-xs lg:text-sm tabular-nums ${
-                                summary.overdue_count > 0 
-                                  ? 'text-red-700 dark:text-red-400' 
-                                  : 'text-muted-foreground opacity-60'
-                              }`}>
-                                {summary.overdue_count}
-                              </span>
+                          {/* Show productivity metrics for done tasks, urgency for others */}
+                          {summary.status === 'done' ? (
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
+                              {/* Completion Rate */}
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Rate
+                                </span>
+                                <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                  taskMetrics.total > 0 
+                                    ? 'text-green-700 dark:text-green-400' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {taskMetrics.total > 0 
+                                    ? `${Math.round((summary.total_count / taskMetrics.total) * 100)}%`
+                                    : '0%'}
+                                </span>
+                              </div>
+                              {/* Done vs Open Ratio */}
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  vs Open
+                                </span>
+                                <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                  taskMetrics.total > summary.total_count
+                                    ? 'text-primary' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {taskMetrics.total > summary.total_count
+                                    ? `${taskMetrics.total - summary.total_count}`
+                                    : '0'}
+                                </span>
+                              </div>
+                              {/* Productivity Score (done / total) */}
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Score
+                                </span>
+                                <span className={`font-semibold text-xs lg:text-sm tabular-nums ${
+                                  summary.total_count > 0
+                                    ? 'text-foreground' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {taskMetrics.total > 0
+                                    ? `${summary.total_count}/${taskMetrics.total}`
+                                    : '0/0'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 lg:justify-between">
-                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                Today
-                              </span>
-                              <span className={`font-bold text-xs lg:text-sm tabular-nums ${
-                                summary.due_today_count > 0 
-                                  ? 'text-orange-700 dark:text-orange-400' 
-                                  : 'text-muted-foreground opacity-60'
-                              }`}>
-                                {summary.due_today_count}
-                              </span>
+                          ) : (
+                            /* Urgency Indicators - Always show all three, even if 0 */
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Overdue
+                                </span>
+                                <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                  summary.overdue_count > 0 
+                                    ? 'text-red-700 dark:text-red-400' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {summary.overdue_count}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Today
+                                </span>
+                                <span className={`font-bold text-xs lg:text-sm tabular-nums ${
+                                  summary.due_today_count > 0 
+                                    ? 'text-orange-700 dark:text-orange-400' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {summary.due_today_count}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Soon
+                                </span>
+                                <span className={`font-semibold text-xs lg:text-sm tabular-nums ${
+                                  summary.due_soon_count > 0 
+                                    ? 'text-foreground' 
+                                    : 'text-muted-foreground opacity-60'
+                                }`}>
+                                  {summary.due_soon_count}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 lg:justify-between">
-                              <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-                                Soon
-                              </span>
-                              <span className={`font-semibold text-xs lg:text-sm tabular-nums ${
-                                summary.due_soon_count > 0 
-                                  ? 'text-foreground' 
-                                  : 'text-muted-foreground opacity-60'
-                              }`}>
-                                {summary.due_soon_count}
-                              </span>
-                            </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     </Link>
