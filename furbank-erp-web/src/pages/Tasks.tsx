@@ -51,7 +51,7 @@ export function Tasks() {
       setActiveTab('in_progress');
     } else if (statusParam === 'to_do') {
       setActiveTab('new');
-    } else if (statusParam === 'due_today' || statusParam === 'overdue' || statusParam === 'blocked') {
+    } else if (statusParam === 'due_today' || statusParam === 'overdue' || statusParam === 'due_soon' || statusParam === 'blocked') {
       setActiveTab('all');
     } else if (reviewStatusParam === 'pending_review' || reviewStatusParam === 'under_review') {
       setActiveTab('all');
@@ -105,6 +105,18 @@ export function Tasks() {
         const now = new Date().toISOString();
         query = query
           .lt('due_date', now)
+          .neq('status', TaskStatus.CLOSED)
+          .neq('status', TaskStatus.DONE);
+      } else if (statusParam === 'due_soon') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const threeDaysLater = new Date(today);
+        threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+        query = query
+          .gte('due_date', tomorrow.toISOString())
+          .lt('due_date', threeDaysLater.toISOString())
           .neq('status', TaskStatus.CLOSED)
           .neq('status', TaskStatus.DONE);
       } else if (activeTab === 'new') {

@@ -104,6 +104,9 @@ export function Dashboard() {
     closed: stats.closedTasksCount ?? 0,
   };
 
+  // Calculate due soon count from taskUrgencySummary
+  const dueSoon = stats.taskUrgencySummary?.reduce((sum, summary) => sum + (summary.due_soon_count ?? 0), 0) ?? 0;
+
   return (
     <div className="space-y-4 md:space-y-6 w-full">
       <div>
@@ -124,13 +127,15 @@ export function Dashboard() {
           </Link>
         </div>
 
-        {/* Task Metrics Summary - All clickable */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-3 md:mb-4">
-          <Link to="/tasks" className="block">
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        {/* Urgency Cards - Overdue, Due Today, Due Soon - Always visible, evenly distributed */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 md:mb-4">
+          <Link to="/tasks?status=overdue" className="block">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Total</div>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
+                <div className="text-xs text-muted-foreground mb-1">Overdue</div>
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
+                  {taskMetrics.overdue}
+                </div>
               </CardContent>
             </Card>
           </Link>
@@ -144,13 +149,25 @@ export function Dashboard() {
               </CardContent>
             </Card>
           </Link>
-          <Link to="/tasks?status=overdue" className="block">
-            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${taskMetrics.overdue > 0 ? 'border-red-500/50 dark:border-red-400/50 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
+          <Link to="/tasks?status=due_soon" className="block">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer ${dueSoon > 0 ? 'border-yellow-500/50 dark:border-yellow-400/50 bg-yellow-50/50 dark:bg-yellow-950/20' : ''}`}>
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Overdue</div>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${taskMetrics.overdue > 0 ? 'text-red-700 dark:text-red-400' : ''}`}>
-                  {taskMetrics.overdue}
+                <div className="text-xs text-muted-foreground mb-1">Due Soon</div>
+                <div className={`text-lg sm:text-xl md:text-2xl font-bold ${dueSoon > 0 ? 'text-yellow-700 dark:text-yellow-400' : ''}`}>
+                  {dueSoon}
                 </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
+        {/* Additional Task Metrics - Total, Pending Review, Closed */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-3 md:mb-4">
+          <Link to="/tasks" className="block">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
+                <div className="text-xs text-muted-foreground mb-1">Total</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.total}</div>
               </CardContent>
             </Card>
           </Link>
@@ -163,7 +180,7 @@ export function Dashboard() {
             </Card>
           </Link>
           <Link to="/tasks?status=closed" className="block">
-            <Card className="col-span-2 sm:col-span-1 hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
                 <div className="text-xs text-muted-foreground mb-1">Closed</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
