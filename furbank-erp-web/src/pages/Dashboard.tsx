@@ -402,24 +402,6 @@ export function Dashboard() {
                         </div>
                       )}
                     </div>
-                    {/* Legend */}
-                    <div className="flex items-center gap-4 mt-2 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded bg-gray-600"></div>
-                        <span className="text-muted-foreground">To Do</span>
-                        <span className="text-foreground font-medium tabular-nums">{toDoCount}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded bg-blue-600"></div>
-                        <span className="text-muted-foreground">In Progress</span>
-                        <span className="text-foreground font-medium tabular-nums">{inProgressCount}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded bg-green-600"></div>
-                        <span className="text-muted-foreground">Done</span>
-                        <span className="text-foreground font-medium tabular-nums">{doneCount}</span>
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
