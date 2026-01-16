@@ -324,162 +324,98 @@ export function Dashboard() {
                   );
                 })}
               </div>
+              
+              {/* Task Distribution Bar Graph */}
+              {(() => {
+                // Calculate counts for the three main statuses
+                const toDoCount = stats.taskUrgencySummary.find(s => s.status === 'to_do')?.total_count ?? 0;
+                const inProgressCount = stats.taskUrgencySummary.find(s => s.status === 'in_progress')?.total_count ?? 0;
+                const doneCount = stats.taskUrgencySummary.find(s => s.status === 'done')?.total_count ?? 0;
+                const totalCount = toDoCount + inProgressCount + doneCount;
+                
+                // Calculate percentages
+                const toDoPercent = totalCount > 0 ? (toDoCount / totalCount) * 100 : 0;
+                const inProgressPercent = totalCount > 0 ? (inProgressCount / totalCount) * 100 : 0;
+                const donePercent = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
+                
+                return (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        Distribution
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {totalCount} total
+                      </span>
+                    </div>
+                    <div className="w-full h-6 rounded-md overflow-hidden flex bg-muted/30">
+                      {/* To Do segment */}
+                      {toDoPercent > 0 && (
+                        <div
+                          className="bg-gray-600 transition-all duration-300 flex items-center justify-center"
+                          style={{ width: `${toDoPercent}%` }}
+                          title={`To Do: ${toDoCount} (${Math.round(toDoPercent)}%)`}
+                        >
+                          {toDoPercent > 10 && (
+                            <span className="text-[10px] font-semibold text-white px-1">
+                              {toDoCount}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* In Progress segment */}
+                      {inProgressPercent > 0 && (
+                        <div
+                          className="bg-blue-600 transition-all duration-300 flex items-center justify-center"
+                          style={{ width: `${inProgressPercent}%` }}
+                          title={`In Progress: ${inProgressCount} (${Math.round(inProgressPercent)}%)`}
+                        >
+                          {inProgressPercent > 10 && (
+                            <span className="text-[10px] font-semibold text-white px-1">
+                              {inProgressCount}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {/* Done segment */}
+                      {donePercent > 0 && (
+                        <div
+                          className="bg-green-600 transition-all duration-300 flex items-center justify-center"
+                          style={{ width: `${donePercent}%` }}
+                          title={`Done: ${doneCount} (${Math.round(donePercent)}%)`}
+                        >
+                          {donePercent > 10 && (
+                            <span className="text-[10px] font-semibold text-white px-1">
+                              {doneCount}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Legend */}
+                    <div className="flex items-center gap-4 mt-2 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-gray-600"></div>
+                        <span className="text-muted-foreground">To Do</span>
+                        <span className="text-foreground font-medium tabular-nums">{toDoCount}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-blue-600"></div>
+                        <span className="text-muted-foreground">In Progress</span>
+                        <span className="text-foreground font-medium tabular-nums">{inProgressCount}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded bg-green-600"></div>
+                        <span className="text-muted-foreground">Done</span>
+                        <span className="text-foreground font-medium tabular-nums">{doneCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         )}
-
-        {/* Task Distribution Line Graph */}
-        {stats.taskUrgencySummary && stats.taskUrgencySummary.length > 0 && (() => {
-          // Extract data for the three statuses
-          const toDoData = stats.taskUrgencySummary.find(s => s.status === 'to_do');
-          const inProgressData = stats.taskUrgencySummary.find(s => s.status === 'in_progress');
-          const doneData = stats.taskUrgencySummary.find(s => s.status === 'done');
-          
-          const toDoCount = toDoData?.total_count ?? 0;
-          const inProgressCount = inProgressData?.total_count ?? 0;
-          const doneCount = doneData?.total_count ?? 0;
-          
-          const maxCount = Math.max(toDoCount, inProgressCount, doneCount, 1);
-          const graphHeight = 120;
-          const graphWidth = '100%';
-          const padding = 20;
-          const chartWidth = 300; // Base width for calculations
-          const chartHeight = graphHeight - padding * 2;
-          
-          // Calculate points for the line graph
-          const x1 = padding;
-          const x2 = padding + (chartWidth / 2);
-          const x3 = padding + chartWidth;
-          
-          const y1 = padding + chartHeight - (toDoCount / maxCount) * chartHeight;
-          const y2 = padding + chartHeight - (inProgressCount / maxCount) * chartHeight;
-          const y3 = padding + chartHeight - (doneCount / maxCount) * chartHeight;
-          
-          return (
-            <Card className="mt-4 md:mt-6">
-              <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
-                <CardTitle className="text-sm sm:text-base md:text-lg">Task Distribution</CardTitle>
-                <CardDescription className="text-xs md:text-sm">Distribution across To Do, In Progress, and Done</CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
-                <div className="w-full overflow-x-auto text-muted-foreground">
-                  <svg 
-                    width={graphWidth} 
-                    height={graphHeight} 
-                    viewBox={`0 0 ${chartWidth + padding * 2} ${graphHeight}`}
-                    className="w-full"
-                    preserveAspectRatio="xMidYMid meet"
-                  >
-                    {/* Grid lines */}
-                    <defs>
-                      <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.1" />
-                      </linearGradient>
-                    </defs>
-                    
-                    {/* Horizontal grid lines */}
-                    {[0, 1, 2, 3, 4].map((i) => {
-                      const y = padding + (chartHeight / 4) * i;
-                      return (
-                        <line
-                          key={`grid-${i}`}
-                          x1={padding}
-                          y1={y}
-                          x2={padding + chartWidth}
-                          y2={y}
-                          stroke="var(--border)"
-                          strokeWidth="1"
-                          strokeDasharray="2,2"
-                          opacity="0.5"
-                        />
-                      );
-                    })}
-                    
-                    {/* Area under the line */}
-                    <path
-                      d={`M ${x1} ${padding + chartHeight} L ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} L ${x3} ${padding + chartHeight} Z`}
-                      fill="url(#lineGradient)"
-                    />
-                    
-                    {/* Main line */}
-                    <path
-                      d={`M ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3}`}
-                      fill="none"
-                      stroke="var(--primary)"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    
-                    {/* Data points */}
-                    <circle cx={x1} cy={y1} r="4" fill="var(--primary)" stroke="var(--background)" strokeWidth="2" />
-                    <circle cx={x2} cy={y2} r="4" fill="var(--primary)" stroke="var(--background)" strokeWidth="2" />
-                    <circle cx={x3} cy={y3} r="4" fill="var(--primary)" stroke="var(--background)" strokeWidth="2" />
-                    
-                    {/* Labels */}
-                    <text
-                      x={x1}
-                      y={graphHeight - 5}
-                      textAnchor="middle"
-                      className="text-[10px] font-medium"
-                      fill="currentColor"
-                    >
-                      To Do
-                    </text>
-                    <text
-                      x={x2}
-                      y={graphHeight - 5}
-                      textAnchor="middle"
-                      className="text-[10px] font-medium"
-                      fill="currentColor"
-                    >
-                      In Progress
-                    </text>
-                    <text
-                      x={x3}
-                      y={graphHeight - 5}
-                      textAnchor="middle"
-                      className="text-[10px] font-medium"
-                      fill="currentColor"
-                    >
-                      Done
-                    </text>
-                    
-                    {/* Value labels above points */}
-                    <text
-                      x={x1}
-                      y={y1 - 8}
-                      textAnchor="middle"
-                      className="text-xs font-semibold"
-                      fill="currentColor"
-                    >
-                      {toDoCount}
-                    </text>
-                    <text
-                      x={x2}
-                      y={y2 - 8}
-                      textAnchor="middle"
-                      className="text-xs font-semibold"
-                      fill="currentColor"
-                    >
-                      {inProgressCount}
-                    </text>
-                    <text
-                      x={x3}
-                      y={y3 - 8}
-                      textAnchor="middle"
-                      className="text-xs font-semibold"
-                      fill="currentColor"
-                    >
-                      {doneCount}
-                    </text>
-                  </svg>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
       </section>
 
       {/* Section 2: Projects (Work Containers) */}
