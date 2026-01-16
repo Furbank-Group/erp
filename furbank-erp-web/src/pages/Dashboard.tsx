@@ -448,8 +448,8 @@ export function Dashboard() {
                           }`}
                         >
                           <div className="flex flex-col gap-2 mb-2">
-                            <div className="flex items-start justify-between gap-2 min-h-10">
-                              <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1 sm:gap-1.5">
                                   <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate leading-tight">{project.project_name}</h3>
                                   <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 w-fit ${statusDisplay.bgColor} ${statusDisplay.color}`}>
@@ -458,12 +458,56 @@ export function Dashboard() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="text-right shrink-0">
-                                <div className="text-xs text-muted-foreground whitespace-nowrap">Completion</div>
-                                <div className="text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap">{project.completion_percentage}%</div>
-                              </div>
                             </div>
                           </div>
+                          
+                          {/* Task Distribution Bar Graph */}
+                          {(() => {
+                            const totalCount = project.total_tasks;
+                            const openCount = project.open_tasks;
+                            const overdueCount = project.overdue_tasks;
+                            const closedCount = project.closed_tasks;
+                            
+                            // Open tasks that are not overdue (overdue is a subset of open)
+                            const openNotOverdue = Math.max(0, openCount - overdueCount);
+                            
+                            // Calculate percentages
+                            const openNotOverduePercent = totalCount > 0 ? (openNotOverdue / totalCount) * 100 : 0;
+                            const overduePercent = totalCount > 0 ? (overdueCount / totalCount) * 100 : 0;
+                            const closedPercent = totalCount > 0 ? (closedCount / totalCount) * 100 : 0;
+                            
+                            return (
+                              <div className="mb-2">
+                                <div className="w-full h-4 rounded-md overflow-hidden flex bg-muted/30">
+                                  {/* Open (non-overdue) segment */}
+                                  {openNotOverduePercent > 0 && (
+                                    <div
+                                      className="bg-blue-600 transition-all duration-300"
+                                      style={{ width: `${openNotOverduePercent}%` }}
+                                      title={`Open: ${openNotOverdue} (${Math.round(openNotOverduePercent)}%)`}
+                                    />
+                                  )}
+                                  {/* Overdue segment */}
+                                  {overduePercent > 0 && (
+                                    <div
+                                      className="bg-red-600 transition-all duration-300"
+                                      style={{ width: `${overduePercent}%` }}
+                                      title={`Overdue: ${overdueCount} (${Math.round(overduePercent)}%)`}
+                                    />
+                                  )}
+                                  {/* Closed segment */}
+                                  {closedPercent > 0 && (
+                                    <div
+                                      className="bg-gray-600 transition-all duration-300"
+                                      style={{ width: `${closedPercent}%` }}
+                                      title={`Closed: ${closedCount} (${Math.round(closedPercent)}%)`}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          
                           <div className="flex flex-col gap-2 text-xs">
                             <div className="flex items-center justify-between">
                               <span className="text-muted-foreground text-xs">Total</span>
