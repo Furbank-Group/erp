@@ -120,6 +120,32 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Safe area support for mobile devices (notch, status bar) */
+  @supports (padding: max(0px)) {
+    body {
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    
+    /* Ensure fixed elements respect safe areas */
+    .fixed,
+    .sticky {
+      padding-left: max(env(safe-area-inset-left), 0px);
+      padding-right: max(env(safe-area-inset-right), 0px);
+    }
+    
+    /* Bottom navigation safe area */
+    nav[class*="fixed"][class*="bottom"] {
+      padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    }
+    
+    /* Top bar safe area */
+    header[class*="fixed"][class*="top"],
+    header[class*="sticky"][class*="top"] {
+      padding-top: max(env(safe-area-inset-top), 0px);
+    }
+  }
 }
 
 /* Animation utilities */

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
+import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -10,6 +11,9 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex">
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+      
       {/* Desktop Sidebar */}
       <Sidebar />
 

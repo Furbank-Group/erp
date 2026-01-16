@@ -202,6 +202,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Error signing out:', error);
         // Still clear local state even if there's an error
       }
+      
+      // Clear service worker caches for security
+      try {
+        const { clearServiceWorkerCaches } = await import('@/lib/pwa/serviceWorkerRegistration');
+        await clearServiceWorkerCaches();
+      } catch (swError) {
+        console.warn('Failed to clear service worker caches:', swError);
+        // Continue with logout even if cache clearing fails
+      }
+      
+      // Clear IndexedDB offline queue
+      try {
+        const { clearQueue } = await import('@/lib/pwa/offlineQueue');
+        await clearQueue();
+      } catch (queueError) {
+        console.warn('Failed to clear offline queue:', queueError);
+        // Continue with logout even if queue clearing fails
+      }
+      
       setAppUser(null);
       setUser(null);
       setSession(null);
