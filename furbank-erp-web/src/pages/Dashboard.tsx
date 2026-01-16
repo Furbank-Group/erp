@@ -447,21 +447,36 @@ export function Dashboard() {
                               : 'border-border'
                           }`}
                         >
-                          <div className="flex flex-col gap-2 mb-2">
-                            <div className="flex items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1 sm:gap-1.5">
-                                  <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate leading-tight">{project.project_name}</h3>
-                                  <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 w-fit ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                                    <StatusIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                    <span className="hidden sm:inline">{statusDisplay.label}</span>
-                                  </div>
-                                </div>
-                              </div>
+                          {/* Header: Project name and status label */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate leading-tight flex-1 min-w-0">{project.project_name}</h3>
+                            <div className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-xs shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                              <StatusIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              <span className="hidden sm:inline">{statusDisplay.label}</span>
                             </div>
                           </div>
                           
-                          {/* Task Distribution Bar Graph */}
+                          {/* Metrics list */}
+                          <div className="flex flex-col gap-2 text-xs mb-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Total</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Open</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</span>
+                            </div>
+                            <div className={`flex items-center justify-between ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
+                              <span className="text-muted-foreground text-xs">Overdue</span>
+                              <span className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Closed</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.closed_tasks}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Task Distribution Bar Graph - Bottom of card */}
                           {(() => {
                             const totalCount = project.total_tasks;
                             const openCount = project.open_tasks;
@@ -477,7 +492,7 @@ export function Dashboard() {
                             const closedPercent = totalCount > 0 ? (closedCount / totalCount) * 100 : 0;
                             
                             return (
-                              <div className="mb-2">
+                              <div className="mt-2 pt-2 border-t">
                                 <div className="w-full h-4 rounded-md overflow-hidden flex bg-muted/30">
                                   {/* Open (non-overdue) segment */}
                                   {openNotOverduePercent > 0 && (
@@ -507,25 +522,6 @@ export function Dashboard() {
                               </div>
                             );
                           })()}
-                          
-                          <div className="flex flex-col gap-2 text-xs">
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground text-xs">Total</span>
-                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground text-xs">Open</span>
-                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</span>
-                            </div>
-                            <div className={`flex items-center justify-between ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
-                              <span className="text-muted-foreground text-xs">Overdue</span>
-                              <span className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground text-xs">Closed</span>
-                              <span className="font-medium text-xs sm:text-sm tabular-nums">{project.closed_tasks}</span>
-                            </div>
-                          </div>
                         </div>
                       </Link>
                     );
