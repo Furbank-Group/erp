@@ -179,7 +179,8 @@ export function Dashboard() {
               <CardTitle className="text-sm sm:text-base md:text-lg">Status Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
-              <div className="space-y-2">
+              {/* Vertical layout for small screens, horizontal for large screens */}
+              <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-5 lg:gap-3">
                 {stats.taskUrgencySummary.map((summary) => {
                   const statusDisplay = getTaskStatusDisplay(summary.status);
                   const StatusIcon = statusDisplay.icon;
@@ -199,37 +200,67 @@ export function Dashboard() {
                       className="block"
                     >
                       <div
-                        className={`flex flex-col gap-2 p-2.5 sm:p-3 rounded-md border transition-colors hover:shadow-md hover:bg-accent/50 dark:hover:bg-accent/20 cursor-pointer ${
+                        className={`flex flex-col lg:flex-col gap-2 lg:gap-3 p-2.5 sm:p-3 lg:p-4 rounded-md border transition-colors hover:shadow-md hover:bg-accent/50 dark:hover:bg-accent/20 cursor-pointer ${
                           hasUrgency 
                             ? 'bg-accent/50 dark:bg-accent/20 border-border' 
                             : 'bg-card border-border'
                         }`}
                       >
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                          <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${statusDisplay.color}`} />
-                          <span className="text-xs sm:text-sm font-medium capitalize truncate">
-                            {summary.status.replace('_', ' ')}
-                          </span>
+                        {/* Status Header - Icon and Label */}
+                        <div className="flex items-center gap-2 sm:gap-3 lg:flex-col lg:items-start lg:gap-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 lg:w-full">
+                            <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 shrink-0 ${statusDisplay.color}`} />
+                            <span className="text-xs sm:text-sm lg:text-sm font-semibold capitalize truncate lg:truncate-none">
+                              {summary.status.replace('_', ' ')}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs">
-                          {summary.overdue_count > 0 && (
-                            <span className="text-red-700 dark:text-red-400 font-semibold whitespace-nowrap">
-                              {summary.overdue_count} overdue
+                        
+                        {/* Metrics - Rearranged for better cognitive load on large screens */}
+                        <div className="flex flex-col lg:flex-col gap-1.5 lg:gap-2">
+                          {/* Total Count - Prominent on large screens */}
+                          <div className="flex items-baseline justify-between lg:flex-col lg:items-start lg:gap-1">
+                            <span className="text-[10px] sm:text-xs lg:text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                              Total
                             </span>
-                          )}
-                          {summary.due_today_count > 0 && (
-                            <span className="text-orange-700 dark:text-orange-400 font-semibold whitespace-nowrap">
-                              {summary.due_today_count} due today
+                            <span className="text-base sm:text-lg lg:text-2xl font-bold text-foreground tabular-nums">
+                              {summary.total_count}
                             </span>
-                          )}
-                          {summary.due_soon_count > 0 && (
-                            <span className="text-muted-foreground whitespace-nowrap">
-                              {summary.due_soon_count} due soon
-                            </span>
-                          )}
-                          <span className="text-foreground font-medium whitespace-nowrap ml-auto">
-                            {summary.total_count} total
-                          </span>
+                          </div>
+                          
+                          {/* Urgency Indicators - Compact on large screens */}
+                          <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
+                            {summary.overdue_count > 0 && (
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Overdue
+                                </span>
+                                <span className="text-red-700 dark:text-red-400 font-bold text-xs lg:text-sm tabular-nums">
+                                  {summary.overdue_count}
+                                </span>
+                              </div>
+                            )}
+                            {summary.due_today_count > 0 && (
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Today
+                                </span>
+                                <span className="text-orange-700 dark:text-orange-400 font-bold text-xs lg:text-sm tabular-nums">
+                                  {summary.due_today_count}
+                                </span>
+                              </div>
+                            )}
+                            {summary.due_soon_count > 0 && (
+                              <div className="flex items-center gap-1.5 lg:justify-between">
+                                <span className="text-[10px] lg:text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                                  Soon
+                                </span>
+                                <span className="text-muted-foreground font-semibold text-xs lg:text-sm tabular-nums">
+                                  {summary.due_soon_count}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>
@@ -279,7 +310,7 @@ export function Dashboard() {
                           }`}
                         >
                           <div className="flex flex-col gap-2 mb-2">
-                            <div className="flex items-start justify-between gap-2 min-h-[2.5rem]">
+                            <div className="flex items-start justify-between gap-2 min-h-10">
                               <div className="flex-1 min-w-0 pr-2">
                                 <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1 sm:gap-1.5">
                                   <h3 className="font-semibold text-xs sm:text-sm md:text-base truncate leading-tight">{project.project_name}</h3>
@@ -289,13 +320,13 @@ export function Dashboard() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="text-right shrink-0 flex-shrink-0">
+                              <div className="text-right shrink-0">
                                 <div className="text-xs text-muted-foreground whitespace-nowrap">Completion</div>
                                 <div className="text-xs sm:text-sm md:text-base font-semibold whitespace-nowrap">{project.completion_percentage}%</div>
                               </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 sm:gap-2 sm:gap-3 text-xs">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 sm:gap-3 text-xs">
                             <div className="min-w-0">
                               <div className="text-muted-foreground text-xs">Total</div>
                               <div className="font-medium text-xs sm:text-sm tabular-nums">{project.total_tasks}</div>
