@@ -44,12 +44,6 @@ export function ProjectDetail() {
   
   const loading = projectsLoading || tasksLoading;
 
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:43',message:'Loading state changed',data:{projectsLoading,tasksLoading,loading,projectId:id,projectFound:!!project,projectListLength:projectList.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  }, [projectsLoading, tasksLoading, loading, id, project, projectList.length]);
-  // #endregion
-
   useEffect(() => {
     if (id) {
       fetchMembers();
@@ -58,18 +52,12 @@ export function ProjectDetail() {
   }, [id]);
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:52',message:'Project effect triggered',data:{projectId:project?.id,projectName:project?.name,hasProject:!!project},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (project) {
       setEditFormData({
         name: project.name,
         description: project.description ?? '',
         status: project.status as ProjectStatus,
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:59',message:'EditFormData updated',data:{name:project.name,status:project.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
     }
   }, [project]);
 
