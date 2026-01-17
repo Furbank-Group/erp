@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
-import { TaskStatus, TaskReviewStatus, UserRole } from '@/lib/supabase/types';
+import { TaskLifecycleStatus, UserRole } from '@/lib/supabase/types';
 import { approveTask, requestChanges } from '@/lib/services/taskReviewService';
-import { archiveTask, unarchiveTask, markTaskDonePendingReview } from '@/lib/services/taskArchiveService';
+import { unarchiveTask, markTaskDonePendingReview } from '@/lib/services/taskArchiveService';
 import { useRealtimeTaskComments } from '@/hooks/useRealtimeTaskComments';
 import { useRealtimeTaskNotes } from '@/hooks/useRealtimeTaskNotes';
 import { useRealtimeTaskFiles } from '@/hooks/useRealtimeTaskFiles';
@@ -14,10 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
 import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
-import { isTaskClosed } from '@/lib/services/projectService';
 import { Skeleton, SkeletonCard } from '@/components/skeletons';
 import { EditRequestButton } from '@/components/tasks/EditRequestButton';
 import { EditRequestForm } from '@/components/tasks/EditRequestForm';
@@ -431,42 +429,7 @@ export function TaskDetail() {
     }
   };
 
-  const handleUpdateTask = async (field: string, value: string) => {
-    if (!id || !user) return;
-    
-    // Enforce immutability: only status updates are allowed, and only by assigned user
-    if (field !== 'status') {
-      alert('Tasks cannot be edited after creation. Only status updates are allowed.');
-      return;
-    }
-
-    // Check if user is assigned to this task (using multi-assignee)
-    if (task && !isUserAssignedToTask) {
-      alert('Only assigned users can update task status.');
-      return;
-    }
-
-    // Check permissions
-    if (!permissions.canUpdateTaskStatus) {
-      alert('You do not have permission to update task status.');
-      return;
-    }
-
-    // Use progress logging service for status updates
-    try {
-      const { addProgressLog } = await import('@/lib/services/taskProgressService');
-      const { error } = await addProgressLog(id, user.id, value as any);
-      
-      if (error) {
-        throw error;
-      }
-      
-      // Task will update automatically via real-time subscription
-    } catch (error: any) {
-      console.error('Error updating task status:', error);
-      alert(error?.message ?? 'Failed to update task status');
-    }
-  };
+  // Removed handleUpdateTask - tasks are now managed through lifecycle functions only
 
   const handleRequestReview = async () => {
     if (!id || !user) return;
@@ -543,29 +506,7 @@ export function TaskDetail() {
     );
   };
 
-  const getReviewStatusDisplay = () => {
-    if (!task?.review_status || task.review_status === TaskReviewStatus.NONE) {
-      return null;
-    }
-
-    const statusMap = {
-      [TaskReviewStatus.PENDING_REVIEW]: { label: 'Pending Review', icon: Clock, color: 'text-yellow-600' },
-      [TaskReviewStatus.UNDER_REVIEW]: { label: 'Under Review', icon: Clock, color: 'text-blue-600' },
-      [TaskReviewStatus.REVIEWED_APPROVED]: { label: 'Reviewed / Approved', icon: CheckCircle2, color: 'text-green-600' },
-      [TaskReviewStatus.CHANGES_REQUESTED]: { label: 'Changes Requested', icon: XCircle, color: 'text-red-600' },
-    };
-
-    const status = statusMap[task.review_status as keyof typeof statusMap];
-    if (!status) return null;
-
-    const Icon = status.icon;
-    return (
-      <div className={`flex items-center gap-2 ${status.color}`}>
-        <Icon className="h-4 w-4" />
-        <span className="text-sm font-medium">{status.label}</span>
-      </div>
-    );
-  };
+  // Removed getReviewStatusDisplay - using canonical task_status instead
 
   if (loading) {
     return (
@@ -601,10 +542,13 @@ export function TaskDetail() {
     );
   }
 
-  const taskIsClosed = task ? isTaskClosed(task) : false;
-  const closedByProject = task ? (task as any).closed_reason === 'project_closed' : false;
-  const closedAt = task ? (task as any).closed_at : null;
-  const isArchived = task ? !!(task as any).archived_at : false;
+  // Get canonical task lifecycle status
+  const taskLifecycleStatus = task ? ((task as any).task_status ?? task.status) : null;
+  const taskIsClosed = taskLifecycleStatus === TaskLifecycleStatus.CLOSED;
+  const taskIsDone = taskLifecycleStatus === TaskLifecycleStatus.DONE;
+  const taskIsWorkInProgress = taskLifecycleStatus === TaskLifecycleStatus.WORK_IN_PROGRESS;
+  const taskIsToDo = taskLifecycleStatus === TaskLifecycleStatus.TODO;
+  // Removed unused variables: closedByProject, closedAt, isArchived
 
   return (
     <div className="space-y-6">
@@ -643,37 +587,52 @@ export function TaskDetail() {
         </div>
       </div>
 
-      {(taskIsClosed || isArchived) && (
-        <Card className="border-2 border-gray-400 bg-gray-50">
+      {/* Lifecycle Status Banner */}
+      {task && (() => {
+        const statusDisplay = getTaskStatusDisplay(
+          (task as any).task_status,
+          task.status,
+          (task as any).archived_at
+        );
+        const StatusIcon = statusDisplay.icon;
+        return (
+          <Card className={`border-2 ${
+            taskIsClosed ? 'border-gray-400 bg-gray-50' :
+            taskIsDone ? 'border-yellow-400 bg-yellow-50' :
+            taskIsWorkInProgress ? 'border-blue-400 bg-blue-50' :
+            'border-gray-300 bg-gray-50'
+          }`}>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Archive className="h-5 w-5 text-gray-600" />
-              <div>
-                <p className="font-medium text-gray-900">
-                  {isArchived ? 'This task is archived (closed)' : 'This task is closed'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {isArchived 
-                    ? 'This task has been archived and is now read-only. It is hidden from active task lists.'
-                    : closedByProject 
-                    ? 'Task was closed because the project is closed. It will be reactivated when the project is reopened.'
-                    : 'This task has been manually closed and is now read-only.'}
-                  {isArchived && (task as any).archived_at && (
-                    <span className="block mt-1">
-                      Archived on {new Date((task as any).archived_at).toLocaleString()}
-                    </span>
+              <div className="flex items-start gap-3">
+                <StatusIcon className={`h-6 w-6 mt-0.5 ${
+                  taskIsClosed ? 'text-gray-600' :
+                  taskIsDone ? 'text-yellow-600' :
+                  taskIsWorkInProgress ? 'text-blue-600' :
+                  'text-gray-600'
+                }`} />
+                <div className="flex-1">
+                  <p className="font-semibold text-lg">
+                    {statusDisplay.label}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {statusDisplay.description ?? 'Current task lifecycle stage'}
+                  </p>
+                  {taskIsClosed && (task as any).archived_at && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Closed on {new Date((task as any).archived_at).toLocaleString()}
+                    </p>
                   )}
-                  {closedAt && !isArchived && (
-                    <span className="block mt-1">
-                      Closed on {new Date(closedAt).toLocaleString()}
-                    </span>
+                  {taskIsDone && (task as any).review_requested_at && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Review requested on {new Date((task as any).review_requested_at).toLocaleString()}
+                    </p>
                   )}
-                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* Task Under Edit Review Banner */}
       {pendingEditRequest && !permissions.canApproveTaskEdits && (
@@ -1049,22 +1008,15 @@ export function TaskDetail() {
                 </div>
               )}
               
-              {/* Status: Only assigned user can update, and only if task is not closed */}
+              {/* Lifecycle Status: Read-only, transitions are automatic */}
               <div className="space-y-2">
-                <Label>Status</Label>
-                {permissions.canUpdateTaskStatus && isUserAssignedToTask && !taskIsClosed ? (
-                  <Select
-                    value={task.status}
-                    onChange={(e) => handleUpdateTask('status', e.target.value)}
-                  >
-                    <option value={TaskStatus.TO_DO}>To Do</option>
-                    <option value={TaskStatus.IN_PROGRESS}>In Progress</option>
-                    <option value={TaskStatus.BLOCKED}>Blocked</option>
-                    <option value={TaskStatus.DONE}>Done</option>
-                  </Select>
-                ) : (
-                  (() => {
-                    const statusDisplay = getTaskStatusDisplay(task.status);
+                <Label>Lifecycle Status</Label>
+                {(() => {
+                  const statusDisplay = getTaskStatusDisplay(
+                    (task as any).task_status,
+                    task.status,
+                    (task as any).archived_at
+                  );
                     const StatusIcon = statusDisplay.icon;
                     return (
                       <div className={`flex items-center gap-2 px-3 py-2 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
@@ -1072,13 +1024,10 @@ export function TaskDetail() {
                         <span className="text-sm font-medium">{statusDisplay.label}</span>
                       </div>
                     );
-                  })()
-                )}
-                {!isUserAssignedToTask && (
+                })()}
                   <p className="text-xs text-muted-foreground">
-                    Only assigned users can update status
+                  Status transitions are automatic based on actions. ToDo → Work-In-Progress (on first interaction) → Done (on review request) → Closed (on approval).
                   </p>
-                )}
               </div>
               
               {/* Priority: Immutable after creation */}
@@ -1110,82 +1059,77 @@ export function TaskDetail() {
             </CardContent>
           </Card>
 
-          {/* Review Section */}
+          {/* Lifecycle Actions Section */}
           <Card>
             <CardHeader>
-              <CardTitle>Review</CardTitle>
-              {task.review_status && task.review_status !== TaskReviewStatus.NONE && (
-                <CardDescription>{getReviewStatusDisplay()}</CardDescription>
-              )}
+              <CardTitle>Lifecycle Actions</CardTitle>
+              <CardDescription>
+                Actions available for the current lifecycle stage
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Review Status Display */}
-              {task.review_status && task.review_status !== TaskReviewStatus.NONE && (
-                <div className="space-y-2 text-sm">
+              {/* Review Information Display */}
+              {taskIsDone && (
+                <div className="space-y-2 text-sm p-3 bg-yellow-50 rounded-md">
                   {reviewRequestedBy && (
                     <div>
-                      <span className="text-muted-foreground">Requested by: </span>
+                      <span className="text-muted-foreground">Review requested by: </span>
                       <span className="font-medium">
                         {reviewRequestedBy.full_name ?? reviewRequestedBy.email}
                       </span>
-                      {task.review_requested_by && (
+                      {task.review_requested_at && (
                         <span className="text-muted-foreground ml-2">
-                          ({new Date(task.updated_at).toLocaleString()})
+                          ({new Date(task.review_requested_at).toLocaleString()})
                         </span>
                       )}
                     </div>
                   )}
-                  {reviewedBy && task.reviewed_at && (
+                </div>
+              )}
+
+              {taskIsClosed && reviewedBy && task.reviewed_at && (
+                <div className="space-y-2 text-sm p-3 bg-gray-50 rounded-md">
                     <div>
-                      <span className="text-muted-foreground">Reviewed by: </span>
+                    <span className="text-muted-foreground">Approved by: </span>
                       <span className="font-medium">{reviewedBy.full_name ?? reviewedBy.email}</span>
                       <span className="text-muted-foreground ml-2">
                         ({new Date(task.reviewed_at).toLocaleString()})
                       </span>
                     </div>
-                  )}
                   {task.review_comments && (
-                    <div className="mt-2 p-3 bg-muted rounded-md">
+                    <div className="mt-2 p-2 bg-white rounded border">
                       <p className="text-sm whitespace-pre-wrap">{task.review_comments}</p>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Staff: Request Review - Only assigned user, disabled for closed tasks */}
-              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && isUserAssignedToTask && (
-                <div>
-                  {task.review_status === TaskReviewStatus.NONE ||
-                  task.review_status === null ||
-                  task.review_status === TaskReviewStatus.CHANGES_REQUESTED ? (
+              {/* Action: Request Review (Work-In-Progress → Done) */}
+              {taskIsWorkInProgress && isUserAssignedToTask && !permissions.canReviewTasks && (
                     <Button
                       onClick={handleRequestReview}
                       disabled={loadingReview}
                       className="w-full"
+                  variant="default"
                     >
                       <MessageSquare className="h-4 w-4 mr-2" />
                       Request Review
                     </Button>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Review has been requested. Waiting for Super Admin approval.
-                    </p>
                   )}
-                </div>
-              )}
-              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && !isUserAssignedToTask && (
+
+              {taskIsWorkInProgress && !isUserAssignedToTask && !permissions.canReviewTasks && (
                 <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
-                  Only the assigned user can request review.
+                  Only assigned users can request review for tasks in Work-In-Progress.
                 </div>
               )}
 
-              {/* Super Admin: Review Actions */}
-              {permissions.canReviewTasks && task.review_status === TaskReviewStatus.PENDING_REVIEW && (
+              {/* Action: Approve Review (Done → Closed) - Super Admin Only */}
+              {taskIsDone && permissions.canReviewTasks && (
                 <div className="space-y-3">
                   <Textarea
                     value={reviewComment}
                     onChange={(e) => setReviewComment(e.target.value)}
-                    placeholder="Add review comments (optional for approval, required for changes)..."
+                    placeholder="Add review comments (optional for approval, required for rejection)..."
                     rows={3}
                   />
                   <div className="flex gap-2">
@@ -1196,7 +1140,7 @@ export function TaskDetail() {
                       className="flex-1"
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Approve
+                      Approve & Close
                     </Button>
                     <Button
                       onClick={handleRequestChanges}
@@ -1205,102 +1149,53 @@ export function TaskDetail() {
                       className="flex-1"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
-                      Request Changes
+                      Reject & Reopen
                     </Button>
                   </div>
                 </div>
               )}
-              {permissions.canReviewTasks && task.review_status === TaskReviewStatus.UNDER_REVIEW && (
-                <p className="text-sm text-muted-foreground">
-                  This task is currently under review.
-                </p>
-              )}
 
-              {permissions.canReviewTasks &&
-                task.review_status !== TaskReviewStatus.PENDING_REVIEW &&
-                task.review_status !== TaskReviewStatus.UNDER_REVIEW &&
-                task.review_status !== TaskReviewStatus.NONE &&
-                task.review_status !== null && (
-                  <p className="text-sm text-muted-foreground">
-                    This task has already been reviewed.
-                  </p>
-                )}
-            </CardContent>
-          </Card>
-
-        {/* Archive/Unarchive Section (Super Admin only) */}
-        {permissions.canArchiveTasks && task && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Archive Management</CardTitle>
-              <CardDescription>
-                Archive or unarchive this task (Super Admin only)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {isArchived ? (
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    This task is archived (closed). You can unarchive it to restore it to active status.
-                  </div>
-                  {(task as any).archived_at && (
-                    <div className="text-xs text-muted-foreground">
-                      Archived on {new Date((task as any).archived_at).toLocaleString()}
-                    </div>
-                  )}
+              {/* Action: Reopen Task (Closed → Work-In-Progress) - Super Admin Only */}
+              {taskIsClosed && permissions.canArchiveTasks && (
                   <Button
                     variant="outline"
                     onClick={async () => {
                       if (!id || !user) return;
-                      if (!confirm('Are you sure you want to unarchive this task?')) return;
+                    if (!confirm('Are you sure you want to reopen this task? It will return to Work-In-Progress.')) return;
                       
                       setLoadingReview(true);
-                      const { error } = await unarchiveTask(id, user.id, 'to_do');
+                    const { error } = await unarchiveTask(id, user.id);
                       
                       if (error) {
-                        alert(`Failed to unarchive task: ${error.message}`);
+                      alert(`Failed to reopen task: ${error.message}`);
                       } else {
-                        alert('Task unarchived successfully');
+                      alert('Task reopened successfully');
                       }
                       setLoadingReview(false);
                     }}
                     disabled={loadingReview}
+                  className="w-full"
                   >
                     <Archive className="h-4 w-4 mr-2" />
-                    Unarchive Task
+                  Reopen Task
                   </Button>
+              )}
+
+              {/* No actions available */}
+              {taskIsToDo && (
+                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  Start working on this task by adding a comment, note, or uploading a file. The task will automatically move to Work-In-Progress.
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    Archive this task to mark it as closed. Archived tasks are hidden from active task lists.
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      if (!id || !user) return;
-                      if (!confirm('Are you sure you want to archive this task? It will be marked as closed.')) return;
-                      
-                      setLoadingReview(true);
-                      const { error } = await archiveTask(id, user.id);
-                      
-                      if (error) {
-                        alert(`Failed to archive task: ${error.message}`);
-                      } else {
-                        alert('Task archived successfully');
-                      }
-                      setLoadingReview(false);
-                    }}
-                    disabled={loadingReview || taskIsClosed}
-                  >
-                    <Archive className="h-4 w-4 mr-2" />
-                    Archive Task
-                  </Button>
+              )}
+
+              {taskIsClosed && !permissions.canArchiveTasks && (
+                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  This task is closed and read-only. Only Super Admin can reopen tasks.
                 </div>
               )}
             </CardContent>
           </Card>
-        )}
+
         </div>
       </div>
     </div>

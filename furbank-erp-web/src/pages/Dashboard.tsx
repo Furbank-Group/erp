@@ -236,18 +236,18 @@ export function Dashboard() {
               </CardContent>
             </Card>
           </Link>
-          <Link to="/tasks?review_status=pending_review" className="block">
+          <Link to="/tasks?task_status=Done" className="block">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Pending Review</div>
+                <div className="text-xs text-muted-foreground mb-1">Done (Pending Review)</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.waitingReview}</div>
               </CardContent>
             </Card>
           </Link>
-          <Link to="/tasks?status=closed" className="block">
+          <Link to="/tasks?task_status=Closed" className="block">
             <Card className="col-span-2 sm:col-span-1 hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Closed</div>
+                <div className="text-xs text-muted-foreground mb-1">Closed (Complete)</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
               </CardContent>
             </Card>
@@ -258,19 +258,23 @@ export function Dashboard() {
         {stats.taskUrgencySummary && stats.taskUrgencySummary.length > 0 && (
           <Card>
             <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
-              <CardTitle className="text-sm sm:text-base md:text-lg">Status Breakdown</CardTitle>
+              <CardTitle className="text-sm sm:text-base md:text-lg">Lifecycle Status Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
               {/* Vertical layout for small screens, horizontal for large screens */}
               <div className="space-y-2 lg:space-y-0 lg:flex lg:gap-3">
                 {[...stats.taskUrgencySummary].sort((a, b) => {
-                  // Custom sort order: blocked, to_do, in_progress, done, closed
+                  // Custom sort order: ToDo, Work-In-Progress, Done, Closed (canonical lifecycle)
                   const order: Record<string, number> = {
-                    'blocked': 1,
-                    'to_do': 2,
-                    'in_progress': 3,
-                    'done': 4,
-                    'closed': 5,
+                    'ToDo': 1,
+                    'to_do': 1,
+                    'Work-In-Progress': 2,
+                    'in_progress': 2,
+                    'blocked': 2, // Blocked is a condition, mapped to Work-In-Progress
+                    'Done': 3,
+                    'done': 3,
+                    'Closed': 4,
+                    'closed': 4,
                   };
                   return (order[a.status] ?? 99) - (order[b.status] ?? 99);
                 }).map((summary) => {
@@ -278,17 +282,22 @@ export function Dashboard() {
                   const StatusIcon = statusDisplay.icon;
                   const hasUrgency = summary.overdue_count > 0 || summary.due_today_count > 0;
 
-                  // Map status to URL parameter
-                  const statusParam = summary.status === 'to_do' ? 'to_do' : 
-                                     summary.status === 'in_progress' ? 'in_progress' :
-                                     summary.status === 'blocked' ? 'blocked' :
-                                     summary.status === 'done' ? 'done' :
-                                     summary.status === 'closed' ? 'closed' : summary.status;
+                  // Map status to URL parameter - use canonical lifecycle if available
+                  // Support both legacy status and new task_status
+                  const statusParam = summary.status === 'ToDo' ? 'ToDo' :
+                                     summary.status === 'Work-In-Progress' ? 'Work-In-Progress' :
+                                     summary.status === 'Done' ? 'Done' :
+                                     summary.status === 'Closed' ? 'Closed' :
+                                     summary.status === 'to_do' ? 'ToDo' : 
+                                     summary.status === 'in_progress' ? 'Work-In-Progress' :
+                                     summary.status === 'blocked' ? 'Work-In-Progress' : // Blocked is a condition, not a state
+                                     summary.status === 'done' ? 'Done' :
+                                     summary.status === 'closed' ? 'Closed' : summary.status;
 
                   return (
                     <Link
                       key={summary.status}
-                      to={`/tasks?status=${statusParam}`}
+                      to={`/tasks?task_status=${statusParam}`}
                       className="block lg:flex-1"
                     >
                       <div
@@ -303,7 +312,11 @@ export function Dashboard() {
                           <div className="flex items-center gap-2 lg:w-full">
                             <StatusIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 shrink-0 ${statusDisplay.color}`} />
                             <span className="text-xs sm:text-sm lg:text-sm font-semibold capitalize truncate lg:truncate-none">
-                              {summary.status.replace('_', ' ')}
+                              {summary.status === 'ToDo' ? 'To Do' :
+                               summary.status === 'Work-In-Progress' ? 'Work-In-Progress' :
+                               summary.status === 'Done' ? 'Done (Pending Review)' :
+                               summary.status === 'Closed' ? 'Closed (Complete)' :
+                               summary.status.replace('_', ' ')}
                             </span>
                           </div>
                         </div>
@@ -321,7 +334,7 @@ export function Dashboard() {
                           </div>
                           
                           {/* Show productivity metrics for done tasks, urgency for others */}
-                          {summary.status === 'done' ? (
+                          {(summary.status === 'done' || summary.status === 'Done') ? (
                             <div className="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col lg:gap-1.5 text-xs lg:text-xs">
                               {/* Completion Rate */}
                               <div className="flex items-center gap-1.5 lg:justify-between">
@@ -419,10 +432,10 @@ export function Dashboard() {
               
               {/* Task Distribution Bar Graph */}
               {(() => {
-                // Calculate counts for the three main statuses
-                const toDoCount = stats.taskUrgencySummary.find(s => s.status === 'to_do')?.total_count ?? 0;
-                const inProgressCount = stats.taskUrgencySummary.find(s => s.status === 'in_progress')?.total_count ?? 0;
-                const doneCount = stats.taskUrgencySummary.find(s => s.status === 'done')?.total_count ?? 0;
+                // Calculate counts for the three main statuses (using canonical lifecycle values)
+                const toDoCount = stats.taskUrgencySummary.find(s => s.status === 'ToDo' || s.status === 'to_do')?.total_count ?? 0;
+                const inProgressCount = stats.taskUrgencySummary.find(s => s.status === 'Work-In-Progress' || s.status === 'in_progress' || s.status === 'blocked')?.total_count ?? 0;
+                const doneCount = stats.taskUrgencySummary.find(s => s.status === 'Done' || s.status === 'done')?.total_count ?? 0;
                 const totalCount = toDoCount + inProgressCount + doneCount;
                 
                 // Calculate percentages
@@ -548,6 +561,12 @@ export function Dashboard() {
                               <span className="text-muted-foreground text-xs">Open</span>
                               <span className="font-medium text-xs sm:text-sm tabular-nums">{project.open_tasks}</span>
                             </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground text-xs">Work-In-Progress</span>
+                              <span className="font-medium text-xs sm:text-sm tabular-nums text-blue-600 dark:text-blue-400">
+                                {project.work_in_progress_tasks ?? 0}
+                              </span>
+                            </div>
                             <div className={`flex items-center justify-between ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
                               <span className="text-muted-foreground text-xs">Overdue</span>
                               <span className="font-semibold text-xs sm:text-sm tabular-nums">{project.overdue_tasks}</span>
@@ -561,27 +580,24 @@ export function Dashboard() {
                           {/* Task Distribution Bar Graph - Bottom of card */}
                           {(() => {
                             const totalCount = project.total_tasks;
-                            const openCount = project.open_tasks;
+                            const workInProgressCount = project.work_in_progress_tasks ?? 0;
                             const overdueCount = project.overdue_tasks;
                             const closedCount = project.closed_tasks;
                             
-                            // Open tasks that are not overdue (overdue is a subset of open)
-                            const openNotOverdue = Math.max(0, openCount - overdueCount);
-                            
                             // Calculate percentages
-                            const openNotOverduePercent = totalCount > 0 ? (openNotOverdue / totalCount) * 100 : 0;
+                            const workInProgressPercent = totalCount > 0 ? (workInProgressCount / totalCount) * 100 : 0;
                             const overduePercent = totalCount > 0 ? (overdueCount / totalCount) * 100 : 0;
                             const closedPercent = totalCount > 0 ? (closedCount / totalCount) * 100 : 0;
                             
                             return (
                               <div className="mt-2 pt-2 border-t">
                                 <div className="w-full h-4 rounded-md overflow-hidden flex bg-muted/30">
-                                  {/* Open (non-overdue) segment */}
-                                  {openNotOverduePercent > 0 && (
+                                  {/* Work-In-Progress segment */}
+                                  {workInProgressPercent > 0 && (
                                     <div
                                       className="bg-blue-600 transition-all duration-300"
-                                      style={{ width: `${openNotOverduePercent}%` }}
-                                      title={`Open: ${openNotOverdue} (${Math.round(openNotOverduePercent)}%)`}
+                                      style={{ width: `${workInProgressPercent}%` }}
+                                      title={`Work-In-Progress: ${workInProgressCount} (${Math.round(workInProgressPercent)}%)`}
                                     />
                                   )}
                                   {/* Overdue segment */}
@@ -681,7 +697,8 @@ export function Dashboard() {
                       return (
                         <tr
                           key={user.user_id}
-                          className={`border-b border-border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors ${
+                          onClick={() => navigate(`/users/${user.user_id}/performance`)}
+                          className={`border-b border-border hover:bg-accent/50 dark:hover:bg-accent/20 transition-colors cursor-pointer ${
                             hasOverdue ? 'bg-red-50/30 dark:bg-red-950/20' : ''
                           }`}
                         >

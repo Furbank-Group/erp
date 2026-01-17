@@ -1,4 +1,4 @@
-import { TaskStatus, TaskPriority, ProjectStatus } from '@/lib/supabase/types';
+import { TaskStatus, TaskLifecycleStatus, TaskPriority, ProjectStatus } from '@/lib/supabase/types';
 import { 
   AlertCircle, 
   Clock, 
@@ -6,12 +6,12 @@ import {
   AlertTriangle,
   Circle,
   PlayCircle,
-  PauseCircle,
   Archive,
   Activity,
   Calendar,
   CalendarCheck,
   CalendarX,
+  FileCheck,
   type LucideIcon
 } from 'lucide-react';
 
@@ -68,83 +68,111 @@ export interface StatusDisplay {
   color: string;
   bgColor: string;
   icon: LucideIcon;
+  description?: string; // Short explanation of what the stage means
 }
 
 /**
- * Get task status display
- * @param status - Task status
- * @param reviewStatus - Task review status (optional)
- * @param archivedAt - Task archived timestamp (optional)
+ * Get task status display based on canonical lifecycle
+ * @param taskStatus - Canonical task lifecycle status (task_status field)
+ * @param legacyStatus - Legacy status field (for backward compatibility)
+ * @param archivedAt - Task archived timestamp (optional, for backward compatibility)
  */
 export function getTaskStatusDisplay(
-  status: string,
-  reviewStatus?: string | null,
+  taskStatus?: string | null,
+  legacyStatus?: string | null,
   archivedAt?: string | null
 ): StatusDisplay {
-  // If task is archived, show as "Closed"
-  if (archivedAt) {
-    return {
-      label: 'Closed',
-      color: 'text-gray-700',
-      bgColor: 'bg-gray-200',
-      icon: Archive,
-    };
-  }
+  // Use canonical task_status if available, otherwise fall back to legacy status
+  const status = taskStatus ?? legacyStatus ?? 'ToDo';
 
-  // If task is done and pending review, show as "Pending Review"
-  if (status === TaskStatus.DONE && reviewStatus === 'pending_review') {
-    return {
-      label: 'Pending Review',
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
-      icon: Clock,
-    };
-  }
-
-  // Standard status display
+  // Canonical lifecycle states (single source of truth)
   switch (status) {
-    case TaskStatus.TO_DO:
+    case TaskLifecycleStatus.TODO:
       return {
         label: 'To Do',
         color: 'text-gray-600',
         bgColor: 'bg-gray-100',
         icon: Circle,
+        description: 'Initial state - No work has started',
       };
-    case TaskStatus.IN_PROGRESS:
+    case TaskLifecycleStatus.WORK_IN_PROGRESS:
       return {
-        label: 'In Progress',
+        label: 'Work-In-Progress',
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
         icon: PlayCircle,
+        description: 'Active execution - Work has started',
       };
-    case TaskStatus.BLOCKED:
+    case TaskLifecycleStatus.DONE:
       return {
-        label: 'Blocked',
-        color: 'text-red-600',
-        bgColor: 'bg-red-100',
-        icon: PauseCircle,
+        label: 'Done (Pending Review)',
+        color: 'text-yellow-600',
+        bgColor: 'bg-yellow-100',
+        icon: FileCheck,
+        description: 'Work completed - Awaiting review approval',
       };
-    case TaskStatus.DONE:
+    case TaskLifecycleStatus.CLOSED:
       return {
-        label: 'Done',
-        color: 'text-green-600',
-        bgColor: 'bg-green-100',
-        icon: CheckCircle2,
-      };
-    case TaskStatus.CLOSED:
-      return {
-        label: 'Closed',
+        label: 'Closed (Complete)',
         color: 'text-gray-700',
         bgColor: 'bg-gray-200',
         icon: Archive,
+        description: 'Review approved - Task is complete and read-only',
       };
     default:
-      return {
-        label: status.replace('_', ' '),
-        color: 'text-gray-600',
-        bgColor: 'bg-gray-100',
-        icon: Circle,
-      };
+      // Fallback to legacy status handling for backward compatibility
+      if (archivedAt) {
+        return {
+          label: 'Closed',
+          color: 'text-gray-700',
+          bgColor: 'bg-gray-200',
+          icon: Archive,
+          description: 'Task is archived and read-only',
+        };
+      }
+
+      switch (status) {
+        case TaskStatus.TO_DO:
+          return {
+            label: 'To Do',
+            color: 'text-gray-600',
+            bgColor: 'bg-gray-100',
+            icon: Circle,
+            description: 'Initial state',
+          };
+        case TaskStatus.IN_PROGRESS:
+          return {
+            label: 'In Progress',
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-100',
+            icon: PlayCircle,
+            description: 'Work in progress',
+          };
+        case TaskStatus.DONE:
+          return {
+            label: 'Done',
+            color: 'text-green-600',
+            bgColor: 'bg-green-100',
+            icon: CheckCircle2,
+            description: 'Task completed',
+          };
+        case TaskStatus.CLOSED:
+          return {
+            label: 'Closed',
+            color: 'text-gray-700',
+            bgColor: 'bg-gray-200',
+            icon: Archive,
+            description: 'Task closed',
+          };
+        default:
+          return {
+            label: status.replace('_', ' '),
+            color: 'text-gray-600',
+            bgColor: 'bg-gray-100',
+            icon: Circle,
+            description: 'Unknown status',
+          };
+      }
   }
 }
 

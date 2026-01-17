@@ -229,7 +229,13 @@ const UserCard = memo(({
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Pending</span>
                     <span className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
-                      {taskCounts.total_pending + taskCounts.total_in_progress}
+                      {taskCounts.total_pending}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Work-In-Progress</span>
+                    <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {taskCounts.total_in_progress}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -262,19 +268,29 @@ const UserCard = memo(({
                         />
                       )}
                       {/* Pending segment (yellow) */}
-                      {(taskCounts.total_pending + taskCounts.total_in_progress) > 0 && (
+                      {taskCounts.total_pending > 0 && (
                         <div
                           className="bg-yellow-600 dark:bg-yellow-500 transition-all"
                           style={{ 
-                            width: `${((taskCounts.total_pending + taskCounts.total_in_progress) / taskCounts.total_assigned) * 100}%` 
+                            width: `${(taskCounts.total_pending / taskCounts.total_assigned) * 100}%` 
                           }}
-                          title={`Pending: ${taskCounts.total_pending + taskCounts.total_in_progress}`}
+                          title={`Pending: ${taskCounts.total_pending}`}
                         />
                       )}
-                      {/* Pending Review segment (blue) */}
-                      {taskCounts.total_pending_review > 0 && (
+                      {/* Work-In-Progress segment (blue) */}
+                      {taskCounts.total_in_progress > 0 && (
                         <div
                           className="bg-blue-600 dark:bg-blue-500 transition-all"
+                          style={{ 
+                            width: `${(taskCounts.total_in_progress / taskCounts.total_assigned) * 100}%` 
+                          }}
+                          title={`Work-In-Progress: ${taskCounts.total_in_progress}`}
+                        />
+                      )}
+                      {/* Pending Review segment (cyan/teal) */}
+                      {taskCounts.total_pending_review > 0 && (
+                        <div
+                          className="bg-cyan-600 dark:bg-cyan-500 transition-all"
                           style={{ 
                             width: `${(taskCounts.total_pending_review / taskCounts.total_assigned) * 100}%` 
                           }}

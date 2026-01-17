@@ -65,19 +65,17 @@ export async function archiveTask(
 
 /**
  * Unarchive a task (Super Admin only)
- * Restores an archived task to active state
+ * Reopens a Closed task, transitioning it to Work-In-Progress
  */
 export async function unarchiveTask(
   taskId: string,
-  userId: string,
-  newStatus: string = 'to_do'
+  userId: string
 ): Promise<{ error: Error | null }> {
   try {
     // @ts-expect-error - Supabase type inference issue with strict TypeScript
     const { data, error } = await supabase.rpc('unarchive_task', {
       p_task_id: taskId,
       p_user_id: userId,
-      p_new_status: newStatus,
     }) as { data: { success: boolean; error?: string } | null; error: Error | null };
 
     if (error) {
@@ -85,7 +83,7 @@ export async function unarchiveTask(
     }
 
     if (data && !data.success) {
-      return { error: new Error(data.error ?? 'Failed to unarchive task') };
+      return { error: new Error(data.error ?? 'Failed to reopen task') };
     }
 
     return { error: null };

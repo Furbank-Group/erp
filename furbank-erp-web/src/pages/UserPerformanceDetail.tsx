@@ -355,7 +355,7 @@ export function UserPerformanceDetail() {
               {taskCounts.total_pending_review}
             </div>
             <Link
-              to={`/tasks?assignedTo=${id}&reviewStatus=waiting_for_review`}
+              to={`/tasks?assignedTo=${id}&task_status=Done`}
               className="text-sm text-primary hover:underline mt-1 block"
             >
               View pending reviews →
@@ -417,7 +417,7 @@ export function UserPerformanceDetail() {
               </div>
               <div className="text-2xl font-bold">{timeliness.overdue_count}</div>
               <div className="text-xs text-muted-foreground">
-                Completed after due date
+                Active tasks past due date
               </div>
             </div>
             <div className="space-y-2">

@@ -12,6 +12,7 @@ export interface ProjectHealth {
   project_status: string;
   total_tasks: number;
   open_tasks: number;
+  work_in_progress_tasks: number;
   overdue_tasks: number;
   closed_tasks: number;
   completion_percentage: number;
@@ -139,7 +140,7 @@ export async function getSuperAdminDashboardStats(): Promise<{
       supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'closed'),
+        .eq('task_status', 'Closed'),
     ]);
 
     return {
@@ -261,7 +262,7 @@ export async function getAdminDashboardStats(): Promise<{
       supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'closed'),
+        .eq('task_status', 'Closed'),
     ]);
 
     return {
@@ -371,7 +372,7 @@ export async function getStaffDashboardStats(): Promise<{
         .from('tasks')
         .select('*', { count: 'exact', head: true })
         .eq('assigned_to', user.id)
-        .in('review_status', ['pending_review', 'under_review']),
+        .eq('task_status', 'Done'),
     ]);
 
     return {

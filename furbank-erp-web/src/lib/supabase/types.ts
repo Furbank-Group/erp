@@ -135,15 +135,19 @@ export interface Database {
           project_id: string | null; // Nullable: allows standalone tasks not associated with any project
           title: string;
           description: string | null;
-          status: string;
+          status: string; // DEPRECATED: Use task_status instead
+          task_status: string; // Canonical lifecycle state: 'ToDo', 'Work-In-Progress', 'Done', 'Closed'
           assigned_to: string | null; // DEPRECATED: Use task_assignees table
           due_date: string | null;
           priority: string;
-          review_status: string | null;
+          review_status: string | null; // DEPRECATED: Review state is now part of task_status
           review_requested_by: string | null;
           reviewed_by: string | null;
           reviewed_at: string | null;
           review_comments: string | null;
+          review_requested_at: string | null;
+          archived_at: string | null; // Timestamp when task was closed/archived
+          archived_by: string | null; // User who closed/archived the task
           closed_reason: string | null; // 'manual' or 'project_closed'
           closed_at: string | null;
           status_before_closure: string | null; // Status before closure, used for reopening
@@ -158,15 +162,19 @@ export interface Database {
           project_id?: string | null; // Optional: can be null for standalone tasks
           title: string;
           description?: string | null;
-          status?: string;
+          status?: string; // DEPRECATED
+          task_status?: string; // Defaults to 'ToDo' for new tasks
           assigned_to?: string | null;
           due_date?: string | null;
           priority?: string;
-          review_status?: string | null;
+          review_status?: string | null; // DEPRECATED
           review_requested_by?: string | null;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           review_comments?: string | null;
+          review_requested_at?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           closed_reason?: string | null;
           closed_at?: string | null;
           status_before_closure?: string | null;
@@ -179,15 +187,19 @@ export interface Database {
           project_id?: string | null; // Can be set to null to make task standalone
           title?: string;
           description?: string | null;
-          status?: string;
+          status?: string; // DEPRECATED
+          task_status?: string; // Use lifecycle functions instead of direct updates
           assigned_to?: string | null;
           due_date?: string | null;
           priority?: string;
-          review_status?: string | null;
+          review_status?: string | null; // DEPRECATED
           review_requested_by?: string | null;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           review_comments?: string | null;
+          review_requested_at?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           closed_reason?: string | null;
           closed_at?: string | null;
           status_before_closure?: string | null;
@@ -649,6 +661,7 @@ export interface ProposedTaskChanges {
 }
 
 // Constants for type safety (using const objects instead of enums for erasableSyntaxOnly compatibility)
+// DEPRECATED: Old status values - kept for backward compatibility
 export const TaskStatus = {
   TO_DO: 'to_do',
   IN_PROGRESS: 'in_progress',
@@ -658,6 +671,16 @@ export const TaskStatus = {
 } as const;
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
+
+// Canonical Task Lifecycle States (Single Source of Truth)
+export const TaskLifecycleStatus = {
+  TODO: 'ToDo',
+  WORK_IN_PROGRESS: 'Work-In-Progress',
+  DONE: 'Done', // Pending Review
+  CLOSED: 'Closed', // Complete - Passed Review
+} as const;
+
+export type TaskLifecycleStatus = typeof TaskLifecycleStatus[keyof typeof TaskLifecycleStatus];
 
 export const TaskPriority = {
   LOW: 'low',

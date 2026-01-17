@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase/client';
 import type { Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
 import { useRealtimeTasks, type TaskFilters, type TaskWithRelations } from '@/hooks/useRealtimeTasks';
-import { UserRole } from '@/lib/supabase/types';
 
 type AppUser = UserWithRole;
 import { Button } from '@/components/ui/button';
@@ -24,8 +23,8 @@ import { AssigneeSelector } from '@/components/tasks/AssigneeSelector';
 const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
   const priorityDisplay = getPriorityDisplay(task.priority);
   const statusDisplay = getTaskStatusDisplay(
-    task.status,
-    (task as any).review_status,
+    (task as any).task_status, // Use canonical task_status field
+    task.status, // Pass legacy status as fallback
     (task as any).archived_at
   );
   const dueDateDisplay = getDueDateDisplay(task.due_date);
@@ -104,14 +103,14 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
 TaskListItem.displayName = 'TaskListItem';
 
 export function Tasks() {
-  const { permissions, role } = useAuth();
+  const { permissions } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
-  const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed' | 'archived'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'todo' | 'work-in-progress' | 'done' | 'closed'>('all');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -119,32 +118,31 @@ export function Tasks() {
     assignee_ids: [] as string[],
     due_date: '',
     priority: 'medium' as TaskPriority,
-    status: 'to_do' as TaskStatus,
+        status: 'to_do' as TaskStatus, // Legacy field - task_status will be set to 'ToDo' by default
   });
 
-  // Build filters from URL params and active tab
+  // Build filters from URL params and active tab - using canonical lifecycle
   const taskFilters = useMemo<TaskFilters>(() => {
     const statusParam = searchParams.get('status');
-    const reviewStatusParam = searchParams.get('review_status');
+    const taskStatusParam = searchParams.get('task_status');
     
     const filters: TaskFilters = {};
     
-    // Determine status filter
-    if (statusParam) {
+    // Determine lifecycle status filter
+    if (taskStatusParam) {
+      filters.taskStatus = taskStatusParam;
+    } else if (statusParam) {
+      // Legacy status support
       filters.status = statusParam;
-    } else if (activeTab === 'new') {
-      filters.status = 'to_do';
-    } else if (activeTab === 'in_progress') {
-      filters.status = 'in_progress';
-    } else if (activeTab === 'completed') {
-      filters.status = 'closed'; // Will be handled specially in the hook
-    } else if (activeTab === 'archived') {
+    } else if (activeTab === 'todo') {
+      filters.taskStatus = 'ToDo';
+    } else if (activeTab === 'work-in-progress') {
+      filters.taskStatus = 'Work-In-Progress';
+    } else if (activeTab === 'done') {
+      filters.taskStatus = 'Done';
+    } else if (activeTab === 'closed') {
+      filters.taskStatus = 'Closed';
       filters.includeArchived = true;
-      filters.status = 'closed';
-    }
-    
-    if (reviewStatusParam) {
-      filters.reviewStatus = reviewStatusParam;
     }
     
     return filters;
@@ -157,17 +155,26 @@ export function Tasks() {
   useEffect(() => {
     const statusParam = searchParams.get('status');
     const reviewStatusParam = searchParams.get('review_status');
+    const taskStatusParam = searchParams.get('task_status');
     
-    if (statusParam === 'closed' || statusParam === 'done') {
-      setActiveTab('completed');
+    if (taskStatusParam === 'Closed') {
+      setActiveTab('closed');
+    } else if (taskStatusParam === 'Done') {
+      setActiveTab('done');
+    } else if (taskStatusParam === 'Work-In-Progress') {
+      setActiveTab('work-in-progress');
+    } else if (taskStatusParam === 'ToDo') {
+      setActiveTab('todo');
+    } else if (statusParam === 'closed' || statusParam === 'done') {
+      setActiveTab('closed');
     } else if (statusParam === 'in_progress') {
-      setActiveTab('in_progress');
+      setActiveTab('work-in-progress');
     } else if (statusParam === 'to_do') {
-      setActiveTab('new');
+      setActiveTab('todo');
     } else if (statusParam === 'due_today' || statusParam === 'overdue' || statusParam === 'blocked') {
       setActiveTab('all');
     } else if (reviewStatusParam === 'pending_review' || reviewStatusParam === 'under_review') {
-      setActiveTab('all');
+      setActiveTab('done');
     } else {
       setActiveTab('all');
     }
@@ -236,7 +243,8 @@ export function Tasks() {
         assigned_to: null, // Use task_assignees for multi-assign
         due_date: formData.due_date || null,
         priority: formData.priority,
-        status: formData.status,
+        status: formData.status, // Legacy field
+        task_status: 'ToDo', // Canonical lifecycle status - new tasks start in ToDo
         created_by: authUser.id,
       }).select('id').single();
 
@@ -305,7 +313,7 @@ export function Tasks() {
         )}
       </div>
 
-      {/* Tabs for filtering */}
+      {/* Lifecycle Tabs for filtering */}
       <div className="flex gap-2 border-b">
         <button
           onClick={() => {
@@ -322,58 +330,56 @@ export function Tasks() {
         </button>
         <button
           onClick={() => {
-            setActiveTab('new');
+            setActiveTab('todo');
             setSearchParams({});
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'new'
+            activeTab === 'todo'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          New Tasks
+          To Do
         </button>
         <button
           onClick={() => {
-            setActiveTab('in_progress');
+            setActiveTab('work-in-progress');
             setSearchParams({});
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'in_progress'
+            activeTab === 'work-in-progress'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          Work In Progress
+          Work-In-Progress
         </button>
         <button
           onClick={() => {
-            setActiveTab('completed');
+            setActiveTab('done');
             setSearchParams({});
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'completed'
+            activeTab === 'done'
               ? 'border-primary text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
-          Completed Tasks
+          Done (Pending Review)
         </button>
-        {role === UserRole.SUPER_ADMIN && permissions.canViewArchivedTasks && (
-          <button
-            onClick={() => {
-              setActiveTab('archived');
-              setSearchParams({});
-            }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'archived'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Archived / Closed
-          </button>
-        )}
+        <button
+          onClick={() => {
+            setActiveTab('closed');
+            setSearchParams({});
+          }}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'closed'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Closed (Complete)
+        </button>
       </div>
 
       {showCreateForm && permissions.canCreateTasks && (

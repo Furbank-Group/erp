@@ -6,8 +6,9 @@ import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus } from '@/lib/supabase/types';
 
 export interface TaskFilters {
-  status?: string;
-  reviewStatus?: string;
+  status?: string; // Legacy status support
+  taskStatus?: string; // Canonical lifecycle status: 'ToDo', 'Work-In-Progress', 'Done', 'Closed'
+  reviewStatus?: string; // Legacy review status support
   projectId?: string;
   assignedTo?: string;
   includeArchived?: boolean; // Set to true to include archived tasks (Super Admin only)
@@ -88,13 +89,18 @@ export function useRealtimeTasks(filters?: TaskFilters) {
 
       // Exclude archived tasks from default views (unless explicitly requested)
       // RLS policies should handle this, but we add explicit filter for clarity
-      // Exception: when viewing completed tasks, we want to see both done and closed (archived) tasks
-      if (!filters?.includeArchived && filters?.status !== 'closed') {
+      // Exception: when viewing closed tasks, we want to see archived tasks
+      if (!filters?.includeArchived && filters?.taskStatus !== 'Closed' && filters?.status !== 'closed') {
         query = query.is('archived_at', null);
       }
 
-      // Apply filters
-      if (filters?.status) {
+      // Apply canonical lifecycle status filter (preferred)
+      if (filters?.taskStatus) {
+        // Ensure we're filtering by the exact status value
+        query = query.eq('task_status', filters.taskStatus);
+      }
+      // Legacy status filter support (for backward compatibility)
+      else if (filters?.status) {
         if (filters.status === 'closed') {
           // Completed tasks include both "done" (pending review) and "closed" (archived)
           // This shows tasks that are done (pending review) and tasks that are closed (archived)
@@ -125,6 +131,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         }
       }
 
+      // Legacy review status filter (for backward compatibility)
       if (filters?.reviewStatus) {
         query = query.eq('review_status', filters.reviewStatus);
       }
@@ -276,7 +283,14 @@ export function useRealtimeTasks(filters?: TaskFilters) {
             // Check if task matches current filters
             let matchesFilter = true;
             
-            if (currentFilters?.status) {
+            // Check canonical lifecycle status filter (preferred)
+            if (currentFilters?.taskStatus) {
+              if (newTask.task_status !== currentFilters.taskStatus) {
+                matchesFilter = false;
+              }
+            }
+            // Legacy status filter support
+            else if (currentFilters?.status) {
               if (currentFilters.status === 'closed' && newTask.status !== TaskStatus.CLOSED) {
                 matchesFilter = false;
               } else if (currentFilters.status === 'to_do' && newTask.status !== TaskStatus.TO_DO) {
@@ -362,7 +376,14 @@ export function useRealtimeTasks(filters?: TaskFilters) {
             // Check if task still matches filters
             let matchesFilter = true;
             
-            if (currentFilters?.status) {
+            // Check canonical lifecycle status filter (preferred)
+            if (currentFilters?.taskStatus) {
+              if (updatedTask.task_status !== currentFilters.taskStatus) {
+                matchesFilter = false;
+              }
+            }
+            // Legacy status filter support
+            else if (currentFilters?.status) {
               if (currentFilters.status === 'closed' && updatedTask.status !== TaskStatus.CLOSED) {
                 matchesFilter = false;
               } else if (currentFilters.status === 'to_do' && updatedTask.status !== TaskStatus.TO_DO) {
