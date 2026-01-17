@@ -248,12 +248,6 @@ export function ProjectDetail() {
     }
   };
 
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:249',message:'Render decision',data:{loading,hasProject:!!project,showingLoading:loading,showingNotFound:!project&&!loading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  }, [loading, project]);
-  // #endregion
-
   if (loading) {
     return <div className="text-center py-8">Loading project...</div>;
   }
