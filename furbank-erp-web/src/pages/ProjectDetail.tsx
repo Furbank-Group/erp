@@ -17,6 +17,7 @@ import { updateProject, closeProject, reopenProject } from '@/lib/services/proje
 import { isTaskClosed } from '@/lib/services/projectService';
 import { Link } from 'react-router-dom';
 import { Edit, Save, X } from 'lucide-react';
+import { Skeleton, SkeletonCard, SkeletonTaskCard } from '@/components/skeletons';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -249,7 +250,26 @@ export function ProjectDetail() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading project...</div>;
+    return (
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="space-y-2">
+          <Skeleton height={32} width="30%" variant="text" />
+          <Skeleton height={16} width="50%" variant="text" />
+        </div>
+
+        {/* Project info skeleton */}
+        <SkeletonCard showHeader={true} showContent={true} lines={4} />
+
+        {/* Tasks list skeleton */}
+        <div className="space-y-4">
+          <Skeleton height={24} width="20%" variant="text" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonTaskCard key={i} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!project) {

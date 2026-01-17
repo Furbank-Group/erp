@@ -123,27 +123,24 @@ export async function getSuperAdminDashboardStats(): Promise<{
       };
     }
 
-    // Fetch enhanced data
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
-      p_user_id: user.id,
-    });
-    
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: userWorkload } = await supabase.rpc('get_user_workload_summary', {
-      p_user_id: user.id,
-    });
-    
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
-      p_user_id: user.id,
-    });
-
-    // Count closed tasks
-    const { count: closedTasksCount } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'closed');
+    // Fetch enhanced data in parallel for better performance
+    const [
+      { data: projectHealth },
+      { data: userWorkload },
+      { data: taskUrgency },
+      { count: closedTasksCount },
+    ] = await Promise.all([
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_project_health_summary', { p_user_id: user.id }),
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_user_workload_summary', { p_user_id: user.id }),
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_task_urgency_summary', { p_user_id: user.id }),
+      supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'closed'),
+    ]);
 
     return {
       data: {
@@ -248,27 +245,24 @@ export async function getAdminDashboardStats(): Promise<{
       }
     }
 
-    // Fetch enhanced data
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
-      p_user_id: user.id,
-    });
-    
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: userWorkload } = await supabase.rpc('get_user_workload_summary', {
-      p_user_id: user.id,
-    });
-    
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
-      p_user_id: user.id,
-    });
-
-    // Count closed tasks
-    const { count: closedTasksCount } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'closed');
+    // Fetch enhanced data in parallel for better performance
+    const [
+      { data: projectHealth },
+      { data: userWorkload },
+      { data: taskUrgency },
+      { count: closedTasksCount },
+    ] = await Promise.all([
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_project_health_summary', { p_user_id: user.id }),
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_user_workload_summary', { p_user_id: user.id }),
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_task_urgency_summary', { p_user_id: user.id }),
+      supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'closed'),
+    ]);
 
     return {
       data: {
@@ -357,30 +351,28 @@ export async function getStaffDashboardStats(): Promise<{
       };
     }
 
-    // Fetch enhanced data for staff
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: projectHealth } = await supabase.rpc('get_project_health_summary', {
-      p_user_id: user.id,
-    });
-    
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { data: taskUrgency } = await supabase.rpc('get_task_urgency_summary', {
-      p_user_id: user.id,
-    });
-
-    // Count closed tasks for user
-    const { count: closedTasksCount } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('assigned_to', user.id)
-      .eq('status', 'closed');
-
-    // For staff, tasksAwaitingReview should be tasks assigned to them that are pending review
-    const { count: tasksAwaitingReviewCount } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
-      .eq('assigned_to', user.id)
-      .in('review_status', ['pending_review', 'under_review']);
+    // Fetch enhanced data in parallel for better performance
+    const [
+      { data: projectHealth },
+      { data: taskUrgency },
+      { count: closedTasksCount },
+      { count: tasksAwaitingReviewCount },
+    ] = await Promise.all([
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_project_health_summary', { p_user_id: user.id }),
+      // @ts-expect-error - Supabase type inference issue with strict TypeScript
+      supabase.rpc('get_task_urgency_summary', { p_user_id: user.id }),
+      supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('assigned_to', user.id)
+        .eq('status', 'closed'),
+      supabase
+        .from('tasks')
+        .select('*', { count: 'exact', head: true })
+        .eq('assigned_to', user.id)
+        .in('review_status', ['pending_review', 'under_review']),
+    ]);
 
     return {
       data: {

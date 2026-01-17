@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   createUser, 
@@ -18,11 +18,180 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Edit, Key, X, Save } from 'lucide-react';
+import { Skeleton, SkeletonUserCard } from '@/components/skeletons';
+
+// Memoized user list item component
+const UserListItem = memo(({ 
+  user, 
+  editingUserId, 
+  editFormData, 
+  resettingPassword,
+  onEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onRoleChange,
+  onStatusToggle,
+  onResetPassword,
+  setEditFormData,
+}: {
+  user: UserWithRole;
+  editingUserId: string | null;
+  editFormData: { email: string; fullName: string; role: UserRole } | null;
+  resettingPassword: string | null;
+  onEdit: (user: UserWithRole) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onRoleChange: (userId: string, newRole: UserRole) => void;
+  onStatusToggle: (userId: string, currentStatus: boolean) => void;
+  onResetPassword: (userId: string) => void;
+  setEditFormData: React.Dispatch<React.SetStateAction<{ email: string; fullName: string; role: UserRole } | null>>;
+}) => {
+  const role = (user as any).roles as { name: string; description: string } | null;
+  const isEditing = editingUserId === user.id;
+
+  return (
+    <div className="p-3 sm:p-4 border rounded-lg space-y-3">
+      {isEditing && editFormData ? (
+        // Edit mode
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">Edit User</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancelEdit}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                value={editFormData.email}
+                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                type="email"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input
+                value={editFormData.fullName}
+                onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select
+                value={editFormData.role}
+                onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as UserRole })}
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super Admin</option>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={onSaveEdit} size="sm">
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+            <Button variant="outline" size="sm" onClick={onCancelEdit}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        // View mode
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm sm:text-base truncate">{user.full_name ?? 'No name'}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-1 text-xs rounded shrink-0 ${
+                    role?.name === 'super_admin'
+                      ? 'bg-gray-800 text-white dark:bg-gray-700'
+                      : role?.name === 'admin'
+                      ? 'bg-gray-600 text-white dark:bg-gray-600'
+                      : 'bg-gray-200 text-gray-800 dark:bg-gray-300'
+                  }`}>
+                    {role?.name.replace('_', ' ').toUpperCase() ?? 'NO ROLE'}
+                  </span>
+                  <span className={`px-2 py-1 text-xs rounded shrink-0 ${
+                    user.is_active
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    {user.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onEdit(user)}
+                  className="flex-1 sm:flex-initial"
+                >
+                  <Edit className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Edit</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onResetPassword(user.id)}
+                  disabled={resettingPassword === user.id}
+                  className="flex-1 sm:flex-initial"
+                >
+                  <Key className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">
+                    {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
+                  </span>
+                  <span className="sm:hidden">Reset</span>
+                </Button>
+              </div>
+              <Select
+                value={role?.name ?? ''}
+                onChange={(e) => onRoleChange(user.id, e.target.value as UserRole)}
+                className="w-full sm:w-48"
+              >
+                <option value="user">User (Staff)</option>
+                <option value="admin">Admin (Task Capturer)</option>
+                <option value="super_admin">Super Admin</option>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onStatusToggle(user.id, user.is_active)}
+                className="w-full sm:w-auto"
+              >
+                {user.is_active ? 'Deactivate' : 'Activate'}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+});
+
+UserListItem.displayName = 'UserListItem';
 
 export function Users() {
   const { permissions } = useAuth();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<CreateUserResult | null>(null);
@@ -101,7 +270,8 @@ export function Users() {
       });
       setShowCreateForm(false);
       
-      // Refresh user list
+      // Refresh user list - the new user will be included
+      // We do a full refresh here since we don't have the full user object from createUser
       await fetchUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
@@ -111,21 +281,52 @@ export function Users() {
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    // Optimistic update: Update role immediately
+    setUsers((prev) =>
+      prev.map((user) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            roles: { name: newRole, description: '' } as any,
+          };
+        }
+        return user;
+      })
+    );
+
     try {
       await updateUserRole(userId, newRole);
-      await fetchUsers();
+      // Refresh in background to ensure consistency
+      fetchUsers().catch(console.error);
     } catch (error) {
       console.error('Error updating user role:', error);
+      // Revert on error
+      fetchUsers();
       alert('Failed to update user role');
     }
   };
 
   const handleStatusToggle = async (userId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    
+    // Optimistic update: Update status immediately
+    setUsers((prev) =>
+      prev.map((user) => {
+        if (user.id === userId) {
+          return { ...user, is_active: newStatus };
+        }
+        return user;
+      })
+    );
+
     try {
-      await toggleUserStatus(userId, !currentStatus);
-      await fetchUsers();
+      await toggleUserStatus(userId, newStatus);
+      // Refresh in background to ensure consistency
+      fetchUsers().catch(console.error);
     } catch (error) {
       console.error('Error updating user status:', error);
+      // Revert on error
+      fetchUsers();
       alert('Failed to update user status');
     }
   };
@@ -164,9 +365,26 @@ export function Users() {
         return;
       }
 
+      // Optimistic update: Update user immediately
+      setUsers((prev) =>
+        prev.map((user) => {
+          if (user.id === editingUserId) {
+            return {
+              ...user,
+              email: editFormData.email,
+              full_name: editFormData.fullName,
+              roles: { name: editFormData.role, description: '' } as any,
+            };
+          }
+          return user;
+        })
+      );
+
       setEditingUserId(null);
       setEditFormData(null);
-      await fetchUsers();
+      
+      // Refresh in background to ensure consistency
+      fetchUsers().catch(console.error);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
     }
@@ -219,7 +437,19 @@ export function Users() {
   }
 
   if (loading) {
-    return <div className="text-center py-8">Loading users...</div>;
+    return (
+      <div className="space-y-4 md:space-y-6 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <Skeleton height={32} width="30%" variant="text" />
+          <Skeleton height={40} width={140} variant="rectangular" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonUserCard key={i} showActions={true} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -442,149 +672,56 @@ export function Users() {
           {users.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No users found</p>
           ) : (
-            <div className="space-y-4">
-              {users.map((user) => {
-                const role = (user as any).roles as { name: string; description: string } | null;
-                const isEditing = editingUserId === user.id;
-
-                return (
-                  <div
-                    key={user.id}
-                    className="p-3 sm:p-4 border rounded-lg space-y-3"
-                  >
-                    {isEditing && editFormData ? (
-                      // Edit mode
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-medium">Edit User</h3>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelEdit}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Email</Label>
-                            <Input
-                              value={editFormData.email}
-                              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                              type="email"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Full Name</Label>
-                            <Input
-                              value={editFormData.fullName}
-                              onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Role</Label>
-                            <Select
-                              value={editFormData.role}
-                              onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as UserRole })}
-                            >
-                              <option value="user">User</option>
-                              <option value="admin">Admin</option>
-                              <option value="super_admin">Super Admin</option>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button onClick={handleSaveEdit} size="sm">
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Changes
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={handleCancelEdit}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      // View mode
-                      <>
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-sm sm:text-base truncate">{user.full_name ?? 'No name'}</p>
-                                <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
-                              </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-1 text-xs rounded shrink-0 ${
-                                  role?.name === 'super_admin'
-                                    ? 'bg-gray-800 text-white dark:bg-gray-700'
-                                    : role?.name === 'admin'
-                                    ? 'bg-gray-600 text-white dark:bg-gray-600'
-                                    : 'bg-gray-200 text-gray-800 dark:bg-gray-300'
-                                }`}>
-                                  {role?.name.replace('_', ' ').toUpperCase() ?? 'NO ROLE'}
-                                </span>
-                                <span className={`px-2 py-1 text-xs rounded shrink-0 ${
-                                  user.is_active
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                }`}>
-                                  {user.is_active ? 'Active' : 'Inactive'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEditUser(user)}
-                                className="flex-1 sm:flex-initial"
-                              >
-                                <Edit className="h-4 w-4 sm:mr-2" />
-                                <span className="hidden sm:inline">Edit</span>
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleResetPassword(user.id)}
-                                disabled={resettingPassword === user.id}
-                                className="flex-1 sm:flex-initial"
-                              >
-                                <Key className="h-4 w-4 sm:mr-2" />
-                                <span className="hidden sm:inline">
-                                  {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
-                                </span>
-                                <span className="sm:hidden">Reset</span>
-                              </Button>
-                            </div>
-                            <Select
-                              value={role?.name ?? ''}
-                              onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                              className="w-full sm:w-48"
-                            >
-                              <option value="user">User (Staff)</option>
-                              <option value="admin">Admin (Task Capturer)</option>
-                              <option value="super_admin">Super Admin</option>
-                            </Select>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStatusToggle(user.id, user.is_active)}
-                              className="w-full sm:w-auto"
-                            >
-                              {user.is_active ? 'Deactivate' : 'Activate'}
-                            </Button>
-                          </div>
-                        </div>
-                      </>
-                    )}
+            <>
+              <div className="space-y-4">
+                {users
+                  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                  .map((user) => (
+                    <UserListItem
+                      key={user.id}
+                      user={user}
+                      editingUserId={editingUserId}
+                      editFormData={editFormData}
+                      resettingPassword={resettingPassword}
+                      onEdit={handleEditUser}
+                      onCancelEdit={handleCancelEdit}
+                      onSaveEdit={handleSaveEdit}
+                      onRoleChange={handleRoleChange}
+                      onStatusToggle={handleStatusToggle}
+                      onResetPassword={handleResetPassword}
+                      setEditFormData={setEditFormData}
+                    />
+                  ))}
+              </div>
+              {users.length > pageSize && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, users.length)} of {users.length} users
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="flex items-center px-3 text-sm">
+                      Page {currentPage} of {Math.ceil(users.length / pageSize)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.min(Math.ceil(users.length / pageSize), p + 1))}
+                      disabled={currentPage >= Math.ceil(users.length / pageSize)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

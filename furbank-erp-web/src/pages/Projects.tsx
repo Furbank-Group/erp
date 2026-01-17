@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
@@ -9,6 +9,46 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Link } from 'react-router-dom';
 import { getProjectStatusDisplay } from '@/lib/utils/taskDisplay';
+import type { Project } from '@/lib/supabase/types';
+import { Skeleton, SkeletonProjectCard } from '@/components/skeletons';
+
+// Memoized project list item component
+const ProjectListItem = memo(({ project }: { project: Project }) => {
+  const statusDisplay = getProjectStatusDisplay(project.status);
+  const StatusIcon = statusDisplay.icon;
+  
+  return (
+    <Link
+      key={project.id}
+      to={`/projects/${project.id}`}
+      className="block h-full"
+    >
+      <Card className="h-full flex flex-col hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
+        <CardHeader className="flex-shrink-0">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-lg flex-1 group-hover:text-primary transition-colors line-clamp-2">
+              {project.name}
+            </CardTitle>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+              <StatusIcon className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{statusDisplay.label}</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col">
+          <p className="text-sm text-muted-foreground line-clamp-3 flex-1">
+            {project.description ?? 'No description'}
+          </p>
+          <div className="mt-4 text-xs text-muted-foreground flex-shrink-0">
+            Created {new Date(project.created_at).toLocaleDateString()}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+});
+
+ProjectListItem.displayName = 'ProjectListItem';
 
 export function Projects() {
   const { permissions } = useAuth();
@@ -49,7 +89,19 @@ export function Projects() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading projects...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton height={32} width="20%" variant="text" />
+          <Skeleton height={40} width={140} variant="rectangular" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonProjectCard key={i} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -104,40 +156,9 @@ export function Projects() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => {
-            const statusDisplay = getProjectStatusDisplay(project.status);
-            const StatusIcon = statusDisplay.icon;
-            
-            return (
-              <Link
-                key={project.id}
-                to={`/projects/${project.id}`}
-                className="block h-full"
-              >
-                <Card className="h-full flex flex-col hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
-                  <CardHeader className="flex-shrink-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-lg flex-1 group-hover:text-primary transition-colors line-clamp-2">
-                        {project.name}
-                      </CardTitle>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                        <StatusIcon className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium">{statusDisplay.label}</span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col">
-                    <p className="text-sm text-muted-foreground line-clamp-3 flex-1">
-                      {project.description ?? 'No description'}
-                    </p>
-                    <div className="mt-4 text-xs text-muted-foreground flex-shrink-0">
-                      Created {new Date(project.created_at).toLocaleDateString()}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
+          {projects.map((project) => (
+            <ProjectListItem key={project.id} project={project} />
+          ))}
         </div>
       )}
     </div>

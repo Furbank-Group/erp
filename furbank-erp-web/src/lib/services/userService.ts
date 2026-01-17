@@ -252,16 +252,57 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
 
 /**
  * Get all users (admin only)
- * Fetches users and roles separately to avoid RLS issues with joins
+ * Uses join query to fetch users and roles in a single query for better performance
  */
 export async function getAllUsers() {
-  // First, get all users
+  // Use join query with explicit foreign key relationship
+  // Specify the foreign key relationship explicitly: users.role_id -> roles.id
   const { data: users, error: usersError } = await supabase
     .from('users')
-    .select('*')
+    .select('*, roles!users_role_id_fkey(*)')
     .order('created_at', { ascending: false });
   
   if (usersError) {
+    // If the explicit foreign key name doesn't work, fall back to separate queries
+    if (usersError.code === 'PGRST201' || usersError.message?.includes('relationship')) {
+      // Fallback: fetch users and roles separately
+      const { data: usersData, error: usersDataError } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (usersDataError) {
+        throw usersDataError;
+      }
+
+      if (!usersData || usersData.length === 0) {
+        return [];
+      }
+
+      // Get unique role IDs
+      const roleIds = [...new Set(usersData.map((u: any) => (u as any).role_id).filter(Boolean))];
+      
+      // Fetch roles separately
+      let rolesMap = new Map();
+      if (roleIds.length > 0) {
+        const { data: roles, error: rolesError } = await supabase
+          .from('roles')
+          .select('*')
+          .in('id', roleIds);
+        
+        if (rolesError) {
+          console.warn('Error fetching roles:', rolesError);
+        } else if (roles) {
+          rolesMap = new Map((roles as any).map((r: any) => [r.id, r]));
+        }
+      }
+
+      // Combine users with their roles
+      return usersData.map((user: any) => ({
+        ...user,
+        roles: (user as any).role_id ? rolesMap.get((user as any).role_id) ?? null : null,
+      }));
+    }
     throw usersError;
   }
 
@@ -269,29 +310,13 @@ export async function getAllUsers() {
     return [];
   }
 
-  // Get unique role IDs
-    const roleIds = [...new Set(users.map((u: any) => (u as any).role_id).filter(Boolean))];
-  
-  // Fetch roles separately
-  let rolesMap = new Map();
-  if (roleIds.length > 0) {
-    const { data: roles, error: rolesError } = await supabase
-      .from('roles')
-      .select('*')
-      .in('id', roleIds);
-    
-    if (rolesError) {
-      console.warn('Error fetching roles:', rolesError);
-      // Don't throw - continue without roles
-    } else if (roles) {
-      rolesMap = new Map((roles as any).map((r: any) => [r.id, r]));
-    }
-  }
-
-  // Combine users with their roles
+  // Transform the data to match expected format
+  // roles(*) returns an array, but we expect a single role object
   return users.map((user: any) => ({
     ...user,
-    roles: (user as any).role_id ? rolesMap.get((user as any).role_id) ?? null : null,
+    roles: Array.isArray(user.roles) && user.roles.length > 0 
+      ? user.roles[0] 
+      : (user.roles ?? null),
   }));
 }
 

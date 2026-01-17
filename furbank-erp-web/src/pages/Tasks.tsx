@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import type { Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
-import { useRealtimeTasks, type TaskFilters } from '@/hooks/useRealtimeTasks';
+import { useRealtimeTasks, type TaskFilters, type TaskWithRelations } from '@/hooks/useRealtimeTasks';
 
 type AppUser = UserWithRole;
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,85 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { isTaskClosed } from '@/lib/services/projectService';
+import { Skeleton, SkeletonTaskCard } from '@/components/skeletons';
+
+// Memoized task list item component
+const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
+  const priorityDisplay = getPriorityDisplay(task.priority);
+  const statusDisplay = getTaskStatusDisplay(task.status);
+  const dueDateDisplay = getDueDateDisplay(task.due_date);
+  const PriorityIcon = priorityDisplay.icon;
+  const StatusIcon = statusDisplay.icon;
+  const taskIsClosed = isTaskClosed(task);
+  const closedByProject = (task as any).closed_reason === 'project_closed';
+
+  return (
+    <Link
+      key={task.id}
+      to={`/tasks/${task.id}`}
+      className="block"
+    >
+      <Card
+        className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group ${
+          taskIsClosed 
+            ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
+            : 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
+        }`}
+      >
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                {task.title}
+              </CardTitle>
+              <CardDescription>
+                {(task.projects as Project)?.name ?? 'Standalone Task'}
+                {taskIsClosed && closedByProject && (
+                  <span className="text-xs italic text-muted-foreground ml-2">
+                    (Closed - Project closed)
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+              <StatusIcon className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{statusDisplay.label}</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+            {task.description ?? 'No description'}
+          </p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-4 flex-wrap">
+              {task.assigned_to && (
+                <span className="text-xs text-muted-foreground">
+                  Assigned to: {(task.assigned_user as UserWithRole)?.full_name ?? (task.assigned_user as UserWithRole)?.email ?? 'Unknown'}
+                </span>
+              )}
+              {dueDateDisplay && (() => {
+                const DueDateIcon = dueDateDisplay.icon;
+                return (
+                  <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
+                    <DueDateIcon className="h-3.5 w-3.5" />
+                    <span className="text-xs font-medium">{dueDateDisplay.label}</span>
+                  </div>
+                );
+              })()}
+            </div>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
+              <PriorityIcon className="h-3.5 w-3.5" />
+              <span className="text-xs font-medium">{priorityDisplay.label}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+});
+
+TaskListItem.displayName = 'TaskListItem';
 
 export function Tasks() {
   const { permissions } = useAuth();
@@ -22,6 +101,8 @@ export function Tasks() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50);
   const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed'>('all');
   const [formData, setFormData] = useState({
     title: '',
@@ -171,7 +252,24 @@ export function Tasks() {
 
 
   if (loading) {
-    return <div className="text-center py-8">Loading tasks...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Skeleton height={32} width="20%" variant="text" />
+          <Skeleton height={40} width={120} variant="rectangular" />
+        </div>
+        <div className="flex gap-2 border-b pb-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} height={36} width={120} variant="rectangular" />
+          ))}
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <SkeletonTaskCard key={i} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -340,82 +438,43 @@ export function Tasks() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {tasks.map((task) => {
-            const priorityDisplay = getPriorityDisplay(task.priority);
-            const statusDisplay = getTaskStatusDisplay(task.status);
-            const dueDateDisplay = getDueDateDisplay(task.due_date);
-            const PriorityIcon = priorityDisplay.icon;
-            const StatusIcon = statusDisplay.icon;
-            const taskIsClosed = isTaskClosed(task);
-            const closedByProject = (task as any).closed_reason === 'project_closed';
-
-            return (
-              <Link
-                key={task.id}
-                to={`/tasks/${task.id}`}
-                className="block"
-              >
-                <Card
-                  className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group ${
-                    taskIsClosed 
-                      ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
-                      : 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
-                  }`}
+        <>
+          <div className="space-y-4">
+            {tasks
+              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+              .map((task) => (
+                <TaskListItem key={task.id} task={task} />
+              ))}
+          </div>
+          {tasks.length > pageSize && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, tasks.length)} of {tasks.length} tasks
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
                 >
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                          {task.title}
-                        </CardTitle>
-                        <CardDescription>
-                          {(task.projects as Project)?.name ?? 'Standalone Task'}
-                          {taskIsClosed && closedByProject && (
-                            <span className="text-xs italic text-muted-foreground ml-2">
-                              (Closed - Project closed)
-                            </span>
-                          )}
-                        </CardDescription>
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-                        <StatusIcon className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium">{statusDisplay.label}</span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                      {task.description ?? 'No description'}
-                    </p>
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        {task.assigned_to && (
-                          <span className="text-xs text-muted-foreground">
-                            Assigned to: {(task.assigned_user as UserWithRole)?.full_name ?? (task.assigned_user as UserWithRole)?.email ?? 'Unknown'}
-                          </span>
-                        )}
-                        {dueDateDisplay && (() => {
-                          const DueDateIcon = dueDateDisplay.icon;
-                          return (
-                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
-                              <DueDateIcon className="h-3.5 w-3.5" />
-                              <span className="text-xs font-medium">{dueDateDisplay.label}</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
-                        <PriorityIcon className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium">{priorityDisplay.label}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                  Previous
+                </Button>
+                <span className="flex items-center px-3 text-sm">
+                  Page {currentPage} of {Math.ceil(tasks.length / pageSize)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(tasks.length / pageSize), p + 1))}
+                  disabled={currentPage >= Math.ceil(tasks.length / pageSize)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

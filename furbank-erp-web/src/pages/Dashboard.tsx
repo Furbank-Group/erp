@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,6 +14,7 @@ import { UserRole } from '@/lib/supabase/types';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Archive } from 'lucide-react';
 import { getTaskStatusDisplay, getProjectStatusDisplay } from '@/lib/utils/taskDisplay';
+import { SkeletonDashboard } from '@/components/skeletons';
 
 export function Dashboard() {
   const { user, role, permissions } = useAuth();
@@ -26,7 +27,20 @@ export function Dashboard() {
   const { tasks: allTasks } = useRealtimeTasks();
   const { projects: allProjects } = useRealtimeProjects();
 
-  // Debounced metric recalculation
+  // Track previous counts to detect meaningful changes
+  const prevCountsRef = useRef({ tasks: 0, projects: 0 });
+  const recalculationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Incremental metric update - only update specific metrics that changed
+  const updateMetricsIncrementally = useCallback((newStats: typeof stats) => {
+    if (!stats || !newStats) return newStats;
+
+    // Only update if there are meaningful changes
+    // For now, we'll do a full update but with better debouncing
+    return newStats;
+  }, [stats]);
+
+  // Debounced metric recalculation with increased debounce time
   const recalculateMetrics = useCallback(async () => {
     if (!user || !stats) return;
 
@@ -43,12 +57,15 @@ export function Dashboard() {
       if (result.error) {
         console.error('Error recalculating metrics:', result.error);
       } else if (result.data) {
-        setStats(result.data);
+        const updatedStats = updateMetricsIncrementally(result.data);
+        if (updatedStats) {
+          setStats(updatedStats);
+        }
       }
     } catch (err) {
       console.error('Error recalculating metrics:', err);
     }
-  }, [user, role, stats]);
+  }, [user, role, stats, updateMetricsIncrementally]);
 
   // Initial fetch
   useEffect(() => {
@@ -75,6 +92,11 @@ export function Dashboard() {
           setError(result.error);
         } else {
           setStats(result.data);
+          // Initialize previous counts
+          prevCountsRef.current = {
+            tasks: allTasks.length,
+            projects: allProjects.length,
+          };
         }
       } catch (err) {
         setError(err as Error);
@@ -86,31 +108,49 @@ export function Dashboard() {
     fetchStats();
   }, [user, role, navigate]);
 
-  // Recalculate metrics when tasks or projects change (debounced)
+  // Recalculate metrics when tasks or projects change (debounced with longer delay)
   useEffect(() => {
     if (!stats || loading) return;
 
-    const timer = setTimeout(() => {
-      recalculateMetrics();
-    }, 500); // Debounce by 500ms
+    // Only recalculate if counts actually changed
+    const tasksChanged = prevCountsRef.current.tasks !== allTasks.length;
+    const projectsChanged = prevCountsRef.current.projects !== allProjects.length;
 
-    return () => clearTimeout(timer);
+    if (!tasksChanged && !projectsChanged) {
+      return;
+    }
+
+    // Update previous counts
+    prevCountsRef.current = {
+      tasks: allTasks.length,
+      projects: allProjects.length,
+    };
+
+    // Clear existing timer
+    if (recalculationTimerRef.current) {
+      clearTimeout(recalculationTimerRef.current);
+    }
+
+    // Debounce by 1000ms for less frequent updates
+    recalculationTimerRef.current = setTimeout(() => {
+      recalculateMetrics();
+    }, 1000);
+
+    return () => {
+      if (recalculationTimerRef.current) {
+        clearTimeout(recalculationTimerRef.current);
+      }
+    };
   }, [allTasks.length, allProjects.length, recalculateMetrics, stats, loading]);
 
   if (loading) {
     return (
       <div className="space-y-4 md:space-y-6 w-full">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Dashboard</h1>
-          <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
-            {role === UserRole.SUPER_ADMIN && 'Global overview across all projects'}
-            {role === UserRole.ADMIN && 'Operational overview of your projects'}
-            {role === UserRole.USER && 'Your personal productivity overview'}
-          </p>
-        </div>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
+        <SkeletonDashboard
+          showStats={true}
+          showCharts={false}
+          showRecentActivity={true}
+        />
       </div>
     );
   }

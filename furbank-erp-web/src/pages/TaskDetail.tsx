@@ -17,6 +17,7 @@ import { Select } from '@/components/ui/select';
 import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { isTaskClosed } from '@/lib/services/projectService';
+import { Skeleton, SkeletonCard } from '@/components/skeletons';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
@@ -74,13 +75,23 @@ export function TaskDetail() {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            // Refetch task with relations
+          if (payload.eventType === 'UPDATE') {
+            // Merge payload directly instead of refetching
+            setTask((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                ...payload.new,
+              } as Task;
+            });
+          } else if (payload.eventType === 'INSERT') {
+            // For INSERT, we still need to fetch with relations
             supabase
               .from('tasks')
               .select(`
                 *,
-                projects!left (*)
+                projects!left (*),
+                assigned_user:users!assigned_to(*, roles(*))
               `)
               .eq('id', id)
               .single()
@@ -110,92 +121,93 @@ export function TaskDetail() {
   const loading = taskLoading || commentsLoading || notesLoading || filesLoading;
 
   // Fetch project, assigned user, and review users when task changes
+  // Use parallel queries and join queries for better performance
   useEffect(() => {
     if (!task || !id) return;
 
-    // Extract project from task
     const taskData = task as any;
+    
+    // Extract project from task (already included in join)
     if (taskData.projects) {
-        setProject(taskData.projects);
+      setProject(taskData.projects);
     } else if (taskData.project_id) {
       // Fallback: fetch project separately
       supabase
-          .from('projects')
-          .select('*')
-          .eq('id', taskData.project_id)
+        .from('projects')
+        .select('*')
+        .eq('id', taskData.project_id)
         .single()
         .then(({ data: projectData }) => {
-        setProject(projectData ?? null);
+          setProject(projectData ?? null);
         });
-      } else {
-        setProject(null);
-      }
+    } else {
+      setProject(null);
+    }
 
-    // Fetch assigned user
-    if (task.assigned_to) {
+    // Extract assigned user from task (already included in join)
+    if (taskData.assigned_user) {
+      setAssignedUser(taskData.assigned_user as UserWithRole);
+    } else if (task.assigned_to) {
+      // Fallback: fetch with join
       supabase
         .from('users')
-        .select('*')
+        .select('*, roles(*)')
         .eq('id', task.assigned_to)
         .single()
         .then(({ data: assignedUserData }) => {
           if (assignedUserData) {
-            supabase
-              .from('roles')
-              .select('*')
-              .eq('id', (assignedUserData as any).role_id)
-              .single()
-              .then(({ data: assignedUserRole }) => {
-                setAssignedUser({ ...(assignedUserData as any), roles: assignedUserRole ?? undefined } as UserWithRole);
-              });
+            const user = assignedUserData as any;
+            setAssignedUser({
+              ...user,
+              roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
+            } as UserWithRole);
           }
         });
     } else {
       setAssignedUser(null);
     }
 
-      // Fetch review requester and reviewer
-    if (task.review_requested_by) {
-      supabase
-          .from('users')
-          .select('*')
-        .eq('id', task.review_requested_by)
-        .single()
-        .then(({ data: requesterData }) => {
-        if (requesterData) {
-            supabase
-            .from('roles')
-            .select('*')
-            .eq('id', (requesterData as any).role_id)
-              .single()
-              .then(({ data: requesterRole }) => {
-          setReviewRequestedBy({ ...(requesterData as any), roles: requesterRole ?? undefined } as UserWithRole);
-              });
-        }
-        });
-    } else {
-      setReviewRequestedBy(null);
-      }
+    // Fetch review requester and reviewer in parallel
+    const userIds: string[] = [];
+    if (task.review_requested_by) userIds.push(task.review_requested_by);
+    if (task.reviewed_by) userIds.push(task.reviewed_by);
 
-    if (task.reviewed_by) {
-      supabase
-          .from('users')
-          .select('*')
-        .eq('id', task.reviewed_by)
-        .single()
-        .then(({ data: reviewerData }) => {
-        if (reviewerData) {
-            supabase
-            .from('roles')
-            .select('*')
-            .eq('id', (reviewerData as any).role_id)
-              .single()
-              .then(({ data: reviewerRole }) => {
-          setReviewedBy({ ...(reviewerData as any), roles: reviewerRole ?? undefined } as UserWithRole);
-              });
+    if (userIds.length > 0) {
+      // Fetch all users with roles in parallel
+      Promise.all(
+        userIds.map((userId) =>
+          supabase
+            .from('users')
+            .select('*, roles(*)')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                const user = data as any;
+                return {
+                  id: userId,
+                  user: {
+                    ...user,
+                    roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
+                  } as UserWithRole,
+                };
+              }
+              return null;
+            })
+        )
+      ).then((results) => {
+        results.forEach((result) => {
+          if (!result) return;
+          if (result.id === task.review_requested_by) {
+            setReviewRequestedBy(result.user);
+          }
+          if (result.id === task.reviewed_by) {
+            setReviewedBy(result.user);
           }
         });
+      });
     } else {
+      setReviewRequestedBy(null);
       setReviewedBy(null);
     }
   }, [task, id]);
@@ -504,7 +516,28 @@ export function TaskDetail() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading task...</div>;
+    return (
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="space-y-2">
+          <Skeleton height={32} width="40%" variant="text" />
+          <Skeleton height={16} width="60%" variant="text" />
+        </div>
+
+        {/* Main content skeleton */}
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-2 space-y-4">
+            <SkeletonCard showHeader={true} showContent={true} lines={5} />
+            <SkeletonCard showHeader={true} showContent={true} lines={3} />
+            <SkeletonCard showHeader={true} showContent={true} lines={4} />
+          </div>
+          <div className="space-y-4">
+            <SkeletonCard showHeader={true} showContent={true} lines={3} />
+            <SkeletonCard showHeader={true} showContent={true} lines={2} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!task) {

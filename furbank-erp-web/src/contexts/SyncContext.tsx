@@ -114,10 +114,10 @@ export function SyncProvider({ children }: SyncProviderProps) {
     // Initial stats
     updateQueueStats();
 
-    // Update stats every 10 seconds
+    // Update stats every 30 seconds (reduced frequency for better performance)
     const interval = setInterval(() => {
       updateQueueStats();
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [isOnline, updateQueueStats]);

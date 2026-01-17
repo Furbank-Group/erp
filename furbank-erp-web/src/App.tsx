@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -5,20 +6,39 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { SyncProvider } from './contexts/SyncContext';
 import { RealtimeProvider } from './contexts/RealtimeContext';
 import { AppLayout } from './components/layout/AppLayout';
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { Projects } from './pages/Projects';
-import { ProjectDetail } from './pages/ProjectDetail';
-import { Tasks } from './pages/Tasks';
-import { TaskDetail } from './pages/TaskDetail';
-import { Reports } from './pages/Reports';
-import { Users } from './pages/Users';
+
+// Lazy load page components for code splitting
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Projects = lazy(() => import('./pages/Projects').then(m => ({ default: m.Projects })));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail').then(m => ({ default: m.ProjectDetail })));
+const Tasks = lazy(() => import('./pages/Tasks').then(m => ({ default: m.Tasks })));
+const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default: m.TaskDetail })));
+const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
+const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
+
+// Loading fallback component
+const PageLoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center" aria-live="polite" aria-busy="true">
+        <div className="text-center space-y-4">
+          <div className="skeleton-shimmer rounded-full h-12 w-12 mx-auto" aria-hidden="true" />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -32,96 +52,105 @@ function AppRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center" aria-live="polite" aria-busy="true">
+        <div className="text-center space-y-4">
+          <div className="skeleton-shimmer rounded-full h-12 w-12 mx-auto" aria-hidden="true" />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={user ? <Navigate to="/dashboard" replace /> : <Login />}
-      />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Navigate to="/dashboard" replace />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Dashboard />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/projects"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Projects />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/projects/:id"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <ProjectDetail />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tasks"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Tasks />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tasks/:id"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <TaskDetail />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Reports />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/users"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <Users />
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <Suspense fallback={<PageLoadingFallback />}>
+      <Routes>
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/dashboard" replace /> : <Login />}
+        />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Navigate to="/dashboard" replace />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Dashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Projects />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects/:id"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ProjectDetail />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Tasks />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tasks/:id"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <TaskDetail />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Reports />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Users />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </Suspense>
   );
 }
 

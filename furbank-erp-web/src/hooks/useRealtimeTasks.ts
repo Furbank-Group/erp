@@ -95,15 +95,30 @@ export function useRealtimeTasks(filters?: TaskFilters) {
 
       if (fetchError) throw fetchError;
 
-      // Fetch assigned users separately
+      // Fetch assigned users efficiently in a single query
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((t: any) => t.assigned_to).filter(Boolean))];
 
-        const usersResult = userIds.length > 0
-          ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
+        // Fetch all users with roles in a single query
+        let usersMap = new Map();
+        if (userIds.length > 0) {
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('*, roles(*)')
+            .in('id', userIds);
 
-        const usersMap = new Map((usersResult.data as any)?.map((u: any) => [u.id, u]) ?? []);
+          if (usersData) {
+            usersMap = new Map(
+              usersData.map((u: any) => {
+                const user = {
+                  ...u,
+                  roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles[0] : (u.roles ?? null),
+                };
+                return [u.id, user];
+              })
+            );
+          }
+        }
 
         const tasksWithRelations = data.map((task: any) => ({
           ...task,
@@ -161,82 +176,92 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         filter: filterString,
         callback: (payload: any) => {
           if (payload.eventType === 'INSERT') {
-            // Fetch the new task with relations
+            // Use payload data directly, fetch relations in parallel if needed
             const newTask = payload.new as any;
-            supabase
-              .from('tasks')
-              .select(`
-                *,
-                projects!left (*)
-              `)
-              .eq('id', newTask.id)
-              .single()
-              .then(({ data: taskData, error: taskError }) => {
-                if (!taskError && taskData) {
-                  const task = taskData as any;
-                  // Check if task matches current filters
-                  let matchesFilter = true;
-                  
-                  if (filters?.status) {
-                    if (filters.status === 'closed' && task.status !== TaskStatus.CLOSED) {
-                      matchesFilter = false;
-                    } else if (filters.status === 'to_do' && task.status !== TaskStatus.TO_DO) {
-                      matchesFilter = false;
-                    } else if (filters.status === 'in_progress' && task.status !== TaskStatus.IN_PROGRESS) {
-                      matchesFilter = false;
-                    } else if (filters.status === 'blocked' && task.status !== TaskStatus.BLOCKED) {
-                      matchesFilter = false;
-                    } else if (filters.status === 'done' && task.status !== TaskStatus.DONE) {
-                      matchesFilter = false;
-                    }
-                  }
+            
+            // Check if task matches current filters
+            let matchesFilter = true;
+            
+            if (filters?.status) {
+              if (filters.status === 'closed' && newTask.status !== TaskStatus.CLOSED) {
+                matchesFilter = false;
+              } else if (filters.status === 'to_do' && newTask.status !== TaskStatus.TO_DO) {
+                matchesFilter = false;
+              } else if (filters.status === 'in_progress' && newTask.status !== TaskStatus.IN_PROGRESS) {
+                matchesFilter = false;
+              } else if (filters.status === 'blocked' && newTask.status !== TaskStatus.BLOCKED) {
+                matchesFilter = false;
+              } else if (filters.status === 'done' && newTask.status !== TaskStatus.DONE) {
+                matchesFilter = false;
+              }
+            }
 
-                  if (filters?.reviewStatus && task.review_status !== filters.reviewStatus) {
-                    matchesFilter = false;
-                  }
+            if (filters?.reviewStatus && newTask.review_status !== filters.reviewStatus) {
+              matchesFilter = false;
+            }
 
-                  if (matchesFilter) {
-                    // Fetch assigned user if needed
-                    if (task.assigned_to) {
-                      supabase
-                        .from('users')
-                        .select('*')
-                        .eq('id', task.assigned_to)
-                        .single()
-                        .then(({ data: userData }) => {
-                          setTasks((prev) => {
-                            // Check if task already exists (avoid duplicates)
-                            if (prev.some((t) => t.id === task.id)) {
-                              return prev;
-                            }
-                            return [
-                              {
-                                ...task,
-                                projects: task.projects ?? null,
-                                assigned_user: userData ?? null,
-                              } as TaskWithRelations,
-                              ...prev,
-                            ];
-                          });
-                        });
-                    } else {
-                      setTasks((prev) => {
-                        if (prev.some((t) => t.id === task.id)) {
-                          return prev;
+            if (matchesFilter) {
+              // Fetch relations in parallel
+              const promises: Promise<any>[] = [];
+              
+              // Fetch project if project_id exists
+              if (newTask.project_id) {
+                promises.push(
+                  Promise.resolve(
+                    supabase
+                      .from('projects')
+                      .select('*')
+                      .eq('id', newTask.project_id)
+                      .single()
+                      .then(({ data }) => data)
+                  )
+                );
+              } else {
+                promises.push(Promise.resolve(null));
+              }
+              
+              // Fetch assigned user if assigned_to exists
+              if (newTask.assigned_to) {
+                promises.push(
+                  Promise.resolve(
+                    supabase
+                      .from('users')
+                      .select('*, roles(*)')
+                      .eq('id', newTask.assigned_to)
+                      .single()
+                      .then(({ data }) => {
+                        if (data) {
+                          const user = data as any;
+                          return {
+                            ...user,
+                            roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
+                          };
                         }
-                        return [
-                          {
-                            ...task,
-                            projects: task.projects ?? null,
-                            assigned_user: null,
-                          } as TaskWithRelations,
-                          ...prev,
-                        ];
-                      });
-                    }
+                        return null;
+                      })
+                  )
+                );
+              } else {
+                promises.push(Promise.resolve(null));
+              }
+              
+              Promise.all(promises).then(([project, assignedUser]) => {
+                setTasks((prev) => {
+                  // Check if task already exists (avoid duplicates)
+                  if (prev.some((t) => t.id === newTask.id)) {
+                    return prev;
                   }
-                }
+                  return [
+                    {
+                      ...newTask,
+                      projects: project ?? null,
+                      assigned_user: assignedUser ?? null,
+                    } as TaskWithRelations,
+                    ...prev,
+                  ];
+                });
               });
+            }
           } else if (payload.eventType === 'UPDATE') {
             const updatedTask = payload.new as any;
             
@@ -266,11 +291,18 @@ export function useRealtimeTasks(filters?: TaskFilters) {
               
               if (existingIndex >= 0) {
                 if (matchesFilter) {
-                  // Update existing task
+                  // Merge payload directly into existing task (preserve relations)
                   const updated = [...prev];
                   updated[existingIndex] = {
                     ...updated[existingIndex],
                     ...updatedTask,
+                    // Preserve relations if they exist
+                    projects: updatedTask.project_id && updated[existingIndex].projects 
+                      ? updated[existingIndex].projects 
+                      : (updatedTask.project_id ? null : updated[existingIndex].projects),
+                    assigned_user: updatedTask.assigned_to && updated[existingIndex].assigned_user
+                      ? updated[existingIndex].assigned_user
+                      : (updatedTask.assigned_to ? null : updated[existingIndex].assigned_user),
                   };
                   return updated;
                 } else {
@@ -278,15 +310,75 @@ export function useRealtimeTasks(filters?: TaskFilters) {
                   return prev.filter((t) => t.id !== updatedTask.id);
                 }
               } else if (matchesFilter) {
-                // Add if it now matches filter
-                return [
-                  {
-                    ...updatedTask,
-                    projects: null,
-                    assigned_user: null,
-                  } as TaskWithRelations,
-                  ...prev,
-                ];
+                // Add if it now matches filter - fetch relations if needed
+                if (updatedTask.project_id || updatedTask.assigned_to) {
+                  const promises: Promise<any>[] = [];
+                  
+                  if (updatedTask.project_id) {
+                    promises.push(
+                      Promise.resolve(
+                        supabase
+                          .from('projects')
+                          .select('*')
+                          .eq('id', updatedTask.project_id)
+                          .single()
+                          .then(({ data }) => data)
+                      )
+                    );
+                  } else {
+                    promises.push(Promise.resolve(null));
+                  }
+                  
+                  if (updatedTask.assigned_to) {
+                    promises.push(
+                      Promise.resolve(
+                        supabase
+                          .from('users')
+                          .select('*, roles(*)')
+                          .eq('id', updatedTask.assigned_to)
+                          .single()
+                          .then(({ data }) => {
+                            if (data) {
+                              const user = data as any;
+                              return {
+                                ...user,
+                                roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
+                              };
+                            }
+                            return null;
+                          })
+                      )
+                    );
+                  } else {
+                    promises.push(Promise.resolve(null));
+                  }
+                  
+                  Promise.all(promises).then(([project, assignedUser]) => {
+                    setTasks((prevTasks) => {
+                      if (prevTasks.some((t) => t.id === updatedTask.id)) {
+                        return prevTasks;
+                      }
+                      return [
+                        {
+                          ...updatedTask,
+                          projects: project ?? null,
+                          assigned_user: assignedUser ?? null,
+                        } as TaskWithRelations,
+                        ...prevTasks,
+                      ];
+                    });
+                  });
+                  return prev; // Return unchanged for now, will update via Promise
+                } else {
+                  return [
+                    {
+                      ...updatedTask,
+                      projects: null,
+                      assigned_user: null,
+                    } as TaskWithRelations,
+                    ...prev,
+                  ];
+                }
               }
               
               return prev;
