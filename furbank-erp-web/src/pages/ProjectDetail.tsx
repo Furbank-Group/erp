@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
@@ -37,10 +37,18 @@ export function ProjectDetail() {
   const { projects: projectList, loading: projectsLoading } = useRealtimeProjects();
   const project = projectList.find((p) => p.id === id) ?? null;
   
-  const { tasks: taskList, loading: tasksLoading } = useRealtimeTasks(id ? { projectId: id } : undefined);
+  // Memoize filters to prevent infinite re-renders
+  const taskFilters = useMemo(() => (id ? { projectId: id } : undefined), [id]);
+  const { tasks: taskList, loading: tasksLoading } = useRealtimeTasks(taskFilters);
   const tasks = taskList.map((t) => t as Task);
   
   const loading = projectsLoading || tasksLoading;
+
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:43',message:'Loading state changed',data:{projectsLoading,tasksLoading,loading,projectId:id,projectFound:!!project,projectListLength:projectList.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  }, [projectsLoading, tasksLoading, loading, id, project, projectList.length]);
+  // #endregion
 
   useEffect(() => {
     if (id) {
@@ -50,12 +58,18 @@ export function ProjectDetail() {
   }, [id]);
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:52',message:'Project effect triggered',data:{projectId:project?.id,projectName:project?.name,hasProject:!!project},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (project) {
       setEditFormData({
         name: project.name,
         description: project.description ?? '',
         status: project.status as ProjectStatus,
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:59',message:'EditFormData updated',data:{name:project.name,status:project.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
     }
   }, [project]);
 
@@ -245,6 +259,12 @@ export function ProjectDetail() {
       setSaving(false);
     }
   };
+
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/d938078e-0696-4b38-ac41-4ae90c450922',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProjectDetail.tsx:249',message:'Render decision',data:{loading,hasProject:!!project,showingLoading:loading,showingNotFound:!project&&!loading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  }, [loading, project]);
+  // #endregion
 
   if (loading) {
     return <div className="text-center py-8">Loading project...</div>;
