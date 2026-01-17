@@ -17,6 +17,7 @@ const Tasks = lazy(() => import('./pages/Tasks').then(m => ({ default: m.Tasks }
 const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default: m.TaskDetail })));
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
+const UserPerformanceDetail = lazy(() => import('./pages/UserPerformanceDetail').then(m => ({ default: m.UserPerformanceDetail })));
 
 // Loading fallback component - memoized to prevent re-renders
 const PageLoadingFallback = memo(() => (
@@ -147,6 +148,16 @@ function AppRoutes() {
             <ProtectedRoute>
               <AppLayout>
                 <Users />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users/:id/performance"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <UserPerformanceDetail />
               </AppLayout>
             </ProtectedRoute>
           }

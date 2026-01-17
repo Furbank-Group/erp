@@ -1,15 +1,16 @@
 import { useEffect, useState, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   createUser, 
   getAllUsers, 
-  updateUserRole, 
   toggleUserStatus, 
   updateUser,
   resetUserPassword,
   type CreateUserResult,
   type ResetPasswordResult 
 } from '@/lib/services/userService';
+import { getUserTaskCounts, type UserTaskCounts } from '@/lib/services/userPerformanceService';
 import type { UserWithRole } from '@/lib/supabase/types';
 import { UserRole } from '@/lib/supabase/types';
 import { Button } from '@/components/ui/button';
@@ -17,57 +18,75 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Edit, Key, X, Save } from 'lucide-react';
+import { Edit, Key, X, Save, Power, TrendingUp } from 'lucide-react';
 import { Skeleton, SkeletonUserCard } from '@/components/skeletons';
 import { DeleteUserButton } from '@/components/users/DeleteUserButton';
 
-// Memoized user list item component
-const UserListItem = memo(({ 
+// Memoized user card component
+const UserCard = memo(({ 
   user, 
   editingUserId, 
   editFormData, 
   resettingPassword,
+  taskCounts,
   onEdit,
   onCancelEdit,
   onSaveEdit,
-  onRoleChange,
   onStatusToggle,
   onResetPassword,
   onUserDeleted,
+  onViewPerformance,
   setEditFormData,
 }: {
   user: UserWithRole;
   editingUserId: string | null;
   editFormData: { email: string; fullName: string; role: UserRole } | null;
   resettingPassword: string | null;
+  taskCounts: UserTaskCounts | null;
   onEdit: (user: UserWithRole) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
-  onRoleChange: (userId: string, newRole: UserRole) => void;
   onStatusToggle: (userId: string, currentStatus: boolean) => void;
   onResetPassword: (userId: string) => void;
   onUserDeleted: () => void;
+  onViewPerformance: (userId: string) => void;
   setEditFormData: React.Dispatch<React.SetStateAction<{ email: string; fullName: string; role: UserRole } | null>>;
 }) => {
-  const role = (user as any).roles as { name: string; description: string } | null;
   const isEditing = editingUserId === user.id;
 
+  // Handle card click - navigate to performance page
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on edit button or inside edit form
+    if (isEditing || (e.target as HTMLElement).closest('button, input, select')) {
+      return;
+    }
+    onViewPerformance(user.id);
+  };
+
   return (
-    <div className="p-3 sm:p-4 border rounded-lg space-y-3">
+    <Card 
+      className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 ${
+        isEditing ? 'border-primary' : ''
+      }`}
+      onClick={handleCardClick}
+    >
       {isEditing && editFormData ? (
-        // Edit mode
-        <div className="space-y-3">
+        // Edit mode - full card becomes edit form
+        <CardContent className="p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-medium">Edit User</h3>
+            <CardTitle className="text-lg">Edit User</CardTitle>
             <Button
               variant="ghost"
               size="sm"
-              onClick={onCancelEdit}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelEdit();
+              }}
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-3">
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
@@ -75,6 +94,8 @@ const UserListItem = memo(({
                 onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                 type="email"
                 required
+                onClick={(e) => e.stopPropagation()}
+                className="w-full"
               />
             </div>
             <div className="space-y-2">
@@ -83,6 +104,8 @@ const UserListItem = memo(({
                 value={editFormData.fullName}
                 onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
                 required
+                onClick={(e) => e.stopPropagation()}
+                className="w-full"
               />
             </div>
             <div className="space-y-2">
@@ -90,115 +113,211 @@ const UserListItem = memo(({
               <Select
                 value={editFormData.role}
                 onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as UserRole })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full"
               >
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
                 <option value="super_admin">Super Admin</option>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Button
+                variant={user.is_active ? "default" : "outline"}
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStatusToggle(user.id, user.is_active);
+                }}
+                className="w-full"
+              >
+                <Power className="h-4 w-4 mr-2" />
+                {user.is_active ? 'Active' : 'Inactive'}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={onSaveEdit} size="sm">
+          <div className="flex flex-col gap-2 pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onResetPassword(user.id);
+              }}
+              disabled={resettingPassword === user.id}
+              className="w-full"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
+            </Button>
+            <DeleteUserButton
+              user={user}
+              onDeleted={onUserDeleted}
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onSaveEdit();
+              }} 
+              size="sm"
+              className="flex-1"
+            >
               <Save className="h-4 w-4 mr-2" />
               Save Changes
             </Button>
-            <Button variant="outline" size="sm" onClick={onCancelEdit}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelEdit();
+              }}
+              className="flex-1"
+            >
               Cancel
             </Button>
           </div>
-        </div>
+        </CardContent>
       ) : (
-        // View mode
-        <>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm sm:text-base truncate">{user.full_name ?? 'No name'}</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`px-2 py-1 text-xs rounded shrink-0 ${
-                    role?.name === 'super_admin'
-                      ? 'bg-gray-800 text-white dark:bg-gray-700'
-                      : role?.name === 'admin'
-                      ? 'bg-gray-600 text-white dark:bg-gray-600'
-                      : 'bg-gray-200 text-gray-800 dark:bg-gray-300'
-                  }`}>
-                    {role?.name.replace('_', ' ').toUpperCase() ?? 'NO ROLE'}
-                  </span>
-                  <span className={`px-2 py-1 text-xs rounded shrink-0 ${
-                    user.is_active
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                  }`}>
-                    {user.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="flex gap-2">
+        // View mode - stats-focused card matching RFQ format
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            {/* Header: Title on left, Status badge on right */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-base truncate pr-2">{user.full_name ?? 'No name'}</h3>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+                  user.is_active
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  <TrendingUp className="h-3 w-3" />
+                  {user.is_active ? 'Active' : 'Inactive'}
+                </span>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  onClick={() => onEdit(user)}
-                  className="flex-1 sm:flex-initial"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(user);
+                  }}
+                  className="h-6 w-6 p-0"
+                  title="Edit User"
                 >
-                  <Edit className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Edit</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onResetPassword(user.id)}
-                  disabled={resettingPassword === user.id}
-                  className="flex-1 sm:flex-initial"
-                >
-                  <Key className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">
-                    {resettingPassword === user.id ? 'Resetting...' : 'Reset Password'}
-                  </span>
-                  <span className="sm:hidden">Reset</span>
+                  <Edit className="h-3 w-3" />
                 </Button>
               </div>
-              <Select
-                value={role?.name ?? ''}
-                onChange={(e) => onRoleChange(user.id, e.target.value as UserRole)}
-                className="w-full sm:w-48"
-              >
-                <option value="user">User (Staff)</option>
-                <option value="admin">Admin (Task Capturer)</option>
-                <option value="super_admin">Super Admin</option>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onStatusToggle(user.id, user.is_active)}
-                className="w-full sm:w-auto"
-              >
-                {user.is_active ? 'Deactivate' : 'Activate'}
-              </Button>
-              <DeleteUserButton
-                user={user}
-                onDeleted={onUserDeleted}
-              />
             </div>
+
+            {/* Metrics: Vertical list with label left, value right */}
+            {taskCounts ? (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Total</span>
+                    <span className="text-sm font-semibold">{taskCounts.total_assigned}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Completed</span>
+                    <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                      {taskCounts.total_completed}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Pending</span>
+                    <span className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                      {taskCounts.total_pending + taskCounts.total_in_progress}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Pending Review</span>
+                    <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {taskCounts.total_pending_review}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Closed</span>
+                    <span className="text-sm font-semibold">{taskCounts.total_archived}</span>
+                  </div>
+                </div>
+
+                {/* Separator */}
+                <div className="border-t"></div>
+
+                {/* Progress Bar: Show task distribution */}
+                <div className="w-full">
+                  {taskCounts.total_assigned > 0 ? (
+                    <div className="w-full h-2 rounded-full overflow-hidden flex bg-muted/30">
+                      {/* Completed segment (green) */}
+                      {taskCounts.total_completed > 0 && (
+                        <div
+                          className="bg-green-600 dark:bg-green-500 transition-all"
+                          style={{ 
+                            width: `${(taskCounts.total_completed / taskCounts.total_assigned) * 100}%` 
+                          }}
+                          title={`Completed: ${taskCounts.total_completed}`}
+                        />
+                      )}
+                      {/* Pending segment (yellow) */}
+                      {(taskCounts.total_pending + taskCounts.total_in_progress) > 0 && (
+                        <div
+                          className="bg-yellow-600 dark:bg-yellow-500 transition-all"
+                          style={{ 
+                            width: `${((taskCounts.total_pending + taskCounts.total_in_progress) / taskCounts.total_assigned) * 100}%` 
+                          }}
+                          title={`Pending: ${taskCounts.total_pending + taskCounts.total_in_progress}`}
+                        />
+                      )}
+                      {/* Pending Review segment (blue) */}
+                      {taskCounts.total_pending_review > 0 && (
+                        <div
+                          className="bg-blue-600 dark:bg-blue-500 transition-all"
+                          style={{ 
+                            width: `${(taskCounts.total_pending_review / taskCounts.total_assigned) * 100}%` 
+                          }}
+                          title={`Pending Review: ${taskCounts.total_pending_review}`}
+                        />
+                      )}
+                      {/* Closed segment (gray) */}
+                      {taskCounts.total_archived > 0 && (
+                        <div
+                          className="bg-gray-600 dark:bg-gray-500 transition-all"
+                          style={{ 
+                            width: `${(taskCounts.total_archived / taskCounts.total_assigned) * 100}%` 
+                          }}
+                          title={`Closed: ${taskCounts.total_archived}`}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-full h-2 rounded-full bg-muted/30"></div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="py-4">
+                <p className="text-xs text-muted-foreground text-center">Loading stats...</p>
+              </div>
+            )}
           </div>
-        </>
+        </CardContent>
       )}
-    </div>
+    </Card>
   );
 });
 
-UserListItem.displayName = 'UserListItem';
+UserCard.displayName = 'UserCard';
 
 export function Users() {
   const { permissions } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(50);
+  const [pageSize] = useState(12); // 3 columns × 4 rows = 12 cards per page
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<CreateUserResult | null>(null);
@@ -218,12 +337,35 @@ export function Users() {
   } | null>(null);
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [resetPasswordResult, setResetPasswordResult] = useState<ResetPasswordResult | null>(null);
+  const [userTaskCounts, setUserTaskCounts] = useState<Map<string, UserTaskCounts>>(new Map());
 
   useEffect(() => {
     if (permissions.canViewAllUsers) {
       fetchUsers();
     }
   }, [permissions.canViewAllUsers]);
+
+  // Fetch task counts for all users
+  useEffect(() => {
+    if (users.length > 0 && permissions.canViewAllUsers) {
+      fetchAllUserTaskCounts();
+    }
+  }, [users, permissions.canViewAllUsers]);
+
+  const fetchAllUserTaskCounts = async () => {
+    const newCounts = new Map<string, UserTaskCounts>();
+
+    // Fetch counts for all users in parallel
+    const countPromises = users.map(async (user) => {
+      const { data, error } = await getUserTaskCounts(user.id);
+      if (!error && data) {
+        newCounts.set(user.id, data);
+      }
+    });
+
+    await Promise.all(countPromises);
+    setUserTaskCounts(newCounts);
+  };
 
   const fetchUsers = async () => {
     try {
@@ -284,32 +426,6 @@ export function Users() {
       setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    // Optimistic update: Update role immediately
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id === userId) {
-          return {
-            ...user,
-            roles: { name: newRole, description: '' } as any,
-          };
-        }
-        return user;
-      })
-    );
-
-    try {
-      await updateUserRole(userId, newRole);
-      // Refresh in background to ensure consistency
-      fetchUsers().catch(console.error);
-    } catch (error) {
-      console.error('Error updating user role:', error);
-      // Revert on error
-      fetchUsers();
-      alert('Failed to update user role');
     }
   };
 
@@ -395,6 +511,10 @@ export function Users() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
     }
+  };
+
+  const handleViewPerformance = (userId: string) => {
+    navigate(`/users/${userId}/performance`);
   };
 
   const handleResetPassword = async (userId: string) => {
@@ -680,23 +800,24 @@ export function Users() {
             <p className="text-center text-muted-foreground py-8">No users found</p>
           ) : (
             <>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {users
                   .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                   .map((user) => (
-                    <UserListItem
+                    <UserCard
                       key={user.id}
                       user={user}
                       editingUserId={editingUserId}
                       editFormData={editFormData}
                       resettingPassword={resettingPassword}
+                      taskCounts={userTaskCounts.get(user.id) ?? null}
                       onEdit={handleEditUser}
                       onCancelEdit={handleCancelEdit}
                       onSaveEdit={handleSaveEdit}
-                      onRoleChange={handleRoleChange}
                       onStatusToggle={handleStatusToggle}
                       onResetPassword={handleResetPassword}
                       onUserDeleted={fetchUsers}
+                      onViewPerformance={handleViewPerformance}
                       setEditFormData={setEditFormData}
                     />
                   ))}

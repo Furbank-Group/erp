@@ -92,8 +92,12 @@ export function DeleteUserButton({ user, onDeleted }: DeleteUserButtonProps) {
     <Button
       variant="destructive"
       size="sm"
-      onClick={handleDelete}
+      onClick={async (e) => {
+        e.stopPropagation();
+        await handleDelete();
+      }}
       disabled={loading}
+      className="w-full"
     >
       <Trash2 className="h-4 w-4 mr-2" />
       {loading ? 'Deleting...' : 'Delete User'}
