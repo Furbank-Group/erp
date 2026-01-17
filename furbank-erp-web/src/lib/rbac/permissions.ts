@@ -42,6 +42,11 @@ export interface Permissions {
   canRequestReview: boolean;
   canReviewTasks: boolean;
   
+  // Task Archive
+  canArchiveTasks: boolean; // Super Admin can archive tasks
+  canUnarchiveTasks: boolean; // Super Admin can unarchive tasks
+  canViewArchivedTasks: boolean; // Super Admin can view archived tasks
+  
   // Task Edit Requests
   canRequestTaskEdit: boolean; // Admin can request edits
   canApproveTaskEdits: boolean; // Super Admin can approve/reject
@@ -90,6 +95,9 @@ export function getPermissions(roleName: string | null): Permissions {
         canUploadFiles: true,
         canRequestReview: true,
         canReviewTasks: true, // Only Super Admin can review
+        canArchiveTasks: true, // Super Admin can archive tasks
+        canUnarchiveTasks: true, // Super Admin can unarchive tasks
+        canViewArchivedTasks: true, // Super Admin can view archived tasks
         canRequestTaskEdit: true, // Can request edits
         canApproveTaskEdits: true, // Can approve/reject edit requests
         canDeleteUsers: true, // Super Admin can soft delete users
@@ -119,6 +127,9 @@ export function getPermissions(roleName: string | null): Permissions {
         canUploadFiles: true,
         canRequestReview: true,
         canReviewTasks: false, // Only Super Admin can review
+        canArchiveTasks: false, // Only Super Admin can archive
+        canUnarchiveTasks: false, // Only Super Admin can unarchive
+        canViewArchivedTasks: false, // Only Super Admin can view archived
         canRequestTaskEdit: true, // Admin can request task edits
         canApproveTaskEdits: false, // Only Super Admin can approve
         canDeleteUsers: false, // Only Super Admin can delete
@@ -150,6 +161,9 @@ export function getPermissions(roleName: string | null): Permissions {
         canUploadFiles: true, // But only on assigned tasks (enforced at API/DB level)
         canRequestReview: true, // But only on assigned tasks (enforced at API/DB level)
         canReviewTasks: false, // Only Super Admin can review
+        canArchiveTasks: false, // Only Super Admin can archive
+        canUnarchiveTasks: false, // Only Super Admin can unarchive
+        canViewArchivedTasks: false, // Only Super Admin can view archived
         canRequestTaskEdit: false, // Only Admin and Super Admin can request edits
         canApproveTaskEdits: false, // Only Super Admin can approve
         canDeleteUsers: false, // Only Super Admin can delete

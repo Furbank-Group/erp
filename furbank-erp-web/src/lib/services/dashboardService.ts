@@ -366,7 +366,7 @@ export async function getStaffDashboardStats(): Promise<{
         .from('tasks')
         .select('*', { count: 'exact', head: true })
         .eq('assigned_to', user.id)
-        .eq('status', 'closed'),
+        .not('archived_at', 'is', null), // Count archived tasks as closed
       supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })

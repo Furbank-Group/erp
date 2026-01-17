@@ -10,6 +10,7 @@ export interface TaskFilters {
   reviewStatus?: string;
   projectId?: string;
   assignedTo?: string;
+  includeArchived?: boolean; // Set to true to include archived tasks (Super Admin only)
 }
 
 export interface TaskWithRelations extends Task {
@@ -85,10 +86,19 @@ export function useRealtimeTasks(filters?: TaskFilters) {
           projects!left (*)
         `);
 
+      // Exclude archived tasks from default views (unless explicitly requested)
+      // RLS policies should handle this, but we add explicit filter for clarity
+      // Exception: when viewing completed tasks, we want to see both done and closed (archived) tasks
+      if (!filters?.includeArchived && filters?.status !== 'closed') {
+        query = query.is('archived_at', null);
+      }
+
       // Apply filters
       if (filters?.status) {
         if (filters.status === 'closed') {
-          query = query.eq('status', TaskStatus.CLOSED);
+          // Completed tasks include both "done" (pending review) and "closed" (archived)
+          // This shows tasks that are done (pending review) and tasks that are closed (archived)
+          query = query.in('status', [TaskStatus.CLOSED, TaskStatus.DONE]);
         } else if (filters.status === 'to_do') {
           query = query.eq('status', TaskStatus.TO_DO);
         } else if (filters.status === 'in_progress') {

@@ -70,7 +70,38 @@ export interface StatusDisplay {
   icon: LucideIcon;
 }
 
-export function getTaskStatusDisplay(status: string): StatusDisplay {
+/**
+ * Get task status display
+ * @param status - Task status
+ * @param reviewStatus - Task review status (optional)
+ * @param archivedAt - Task archived timestamp (optional)
+ */
+export function getTaskStatusDisplay(
+  status: string,
+  reviewStatus?: string | null,
+  archivedAt?: string | null
+): StatusDisplay {
+  // If task is archived, show as "Closed"
+  if (archivedAt) {
+    return {
+      label: 'Closed',
+      color: 'text-gray-700',
+      bgColor: 'bg-gray-200',
+      icon: Archive,
+    };
+  }
+
+  // If task is done and pending review, show as "Pending Review"
+  if (status === TaskStatus.DONE && reviewStatus === 'pending_review') {
+    return {
+      label: 'Pending Review',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-100',
+      icon: Clock,
+    };
+  }
+
+  // Standard status display
   switch (status) {
     case TaskStatus.TO_DO:
       return {

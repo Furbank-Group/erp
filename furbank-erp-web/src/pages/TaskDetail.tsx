@@ -4,7 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskReviewStatus, UserRole } from '@/lib/supabase/types';
-import { requestReview, approveTask, requestChanges } from '@/lib/services/taskReviewService';
+import { approveTask, requestChanges } from '@/lib/services/taskReviewService';
+import { archiveTask, unarchiveTask, markTaskDonePendingReview } from '@/lib/services/taskArchiveService';
 import { useRealtimeTaskComments } from '@/hooks/useRealtimeTaskComments';
 import { useRealtimeTaskNotes } from '@/hooks/useRealtimeTaskNotes';
 import { useRealtimeTaskFiles } from '@/hooks/useRealtimeTaskFiles';
@@ -472,13 +473,15 @@ export function TaskDetail() {
 
     try {
       setLoadingReview(true);
-      const { error } = await requestReview(id, user.id);
+      // Use markTaskDonePendingReview when user marks task as done
+      // This automatically sets status to 'done' and review_status to 'pending_review'
+      const { error } = await markTaskDonePendingReview(id, user.id);
       if (error) throw error;
       // Task will update automatically via real-time subscription
-      alert('Review requested successfully');
-    } catch (error) {
+      alert('Task marked as done and review requested successfully');
+    } catch (error: any) {
       console.error('Error requesting review:', error);
-      alert('Failed to request review');
+      alert(`Failed to request review: ${error?.message ?? 'Unknown error'}`);
     } finally {
       setLoadingReview(false);
     }
@@ -601,6 +604,7 @@ export function TaskDetail() {
   const taskIsClosed = task ? isTaskClosed(task) : false;
   const closedByProject = task ? (task as any).closed_reason === 'project_closed' : false;
   const closedAt = task ? (task as any).closed_at : null;
+  const isArchived = task ? !!(task as any).archived_at : false;
 
   return (
     <div className="space-y-6">
@@ -639,18 +643,27 @@ export function TaskDetail() {
         </div>
       </div>
 
-      {taskIsClosed && (
+      {(taskIsClosed || isArchived) && (
         <Card className="border-2 border-gray-400 bg-gray-50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
               <Archive className="h-5 w-5 text-gray-600" />
               <div>
-                <p className="font-medium text-gray-900">This task is closed</p>
+                <p className="font-medium text-gray-900">
+                  {isArchived ? 'This task is archived (closed)' : 'This task is closed'}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  {closedByProject 
+                  {isArchived 
+                    ? 'This task has been archived and is now read-only. It is hidden from active task lists.'
+                    : closedByProject 
                     ? 'Task was closed because the project is closed. It will be reactivated when the project is reopened.'
                     : 'This task has been manually closed and is now read-only.'}
-                  {closedAt && (
+                  {isArchived && (task as any).archived_at && (
+                    <span className="block mt-1">
+                      Archived on {new Date((task as any).archived_at).toLocaleString()}
+                    </span>
+                  )}
+                  {closedAt && !isArchived && (
                     <span className="block mt-1">
                       Closed on {new Date(closedAt).toLocaleString()}
                     </span>
@@ -1214,6 +1227,80 @@ export function TaskDetail() {
                 )}
             </CardContent>
           </Card>
+
+        {/* Archive/Unarchive Section (Super Admin only) */}
+        {permissions.canArchiveTasks && task && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Archive Management</CardTitle>
+              <CardDescription>
+                Archive or unarchive this task (Super Admin only)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isArchived ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    This task is archived (closed). You can unarchive it to restore it to active status.
+                  </div>
+                  {(task as any).archived_at && (
+                    <div className="text-xs text-muted-foreground">
+                      Archived on {new Date((task as any).archived_at).toLocaleString()}
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!id || !user) return;
+                      if (!confirm('Are you sure you want to unarchive this task?')) return;
+                      
+                      setLoadingReview(true);
+                      const { error } = await unarchiveTask(id, user.id, 'to_do');
+                      
+                      if (error) {
+                        alert(`Failed to unarchive task: ${error.message}`);
+                      } else {
+                        alert('Task unarchived successfully');
+                      }
+                      setLoadingReview(false);
+                    }}
+                    disabled={loadingReview}
+                  >
+                    <Archive className="h-4 w-4 mr-2" />
+                    Unarchive Task
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    Archive this task to mark it as closed. Archived tasks are hidden from active task lists.
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!id || !user) return;
+                      if (!confirm('Are you sure you want to archive this task? It will be marked as closed.')) return;
+                      
+                      setLoadingReview(true);
+                      const { error } = await archiveTask(id, user.id);
+                      
+                      if (error) {
+                        alert(`Failed to archive task: ${error.message}`);
+                      } else {
+                        alert('Task archived successfully');
+                      }
+                      setLoadingReview(false);
+                    }}
+                    disabled={loadingReview || taskIsClosed}
+                  >
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archive Task
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
         </div>
       </div>
     </div>

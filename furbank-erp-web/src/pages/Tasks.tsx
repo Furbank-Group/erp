@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import type { Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
 import { useRealtimeTasks, type TaskFilters, type TaskWithRelations } from '@/hooks/useRealtimeTasks';
+import { UserRole } from '@/lib/supabase/types';
 
 type AppUser = UserWithRole;
 import { Button } from '@/components/ui/button';
@@ -22,12 +23,17 @@ import { AssigneeSelector } from '@/components/tasks/AssigneeSelector';
 // Memoized task list item component
 const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
   const priorityDisplay = getPriorityDisplay(task.priority);
-  const statusDisplay = getTaskStatusDisplay(task.status);
+  const statusDisplay = getTaskStatusDisplay(
+    task.status,
+    (task as any).review_status,
+    (task as any).archived_at
+  );
   const dueDateDisplay = getDueDateDisplay(task.due_date);
   const PriorityIcon = priorityDisplay.icon;
   const StatusIcon = statusDisplay.icon;
   const taskIsClosed = isTaskClosed(task);
   const closedByProject = (task as any).closed_reason === 'project_closed';
+  const isArchived = !!(task as any).archived_at;
 
   return (
     <Link
@@ -37,7 +43,7 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
     >
       <Card
         className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group ${
-          taskIsClosed 
+          taskIsClosed || isArchived
             ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
             : 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
         }`}
@@ -98,14 +104,14 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
 TaskListItem.displayName = 'TaskListItem';
 
 export function Tasks() {
-  const { permissions } = useAuth();
+  const { permissions, role } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
-  const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'new' | 'in_progress' | 'completed' | 'archived'>('all');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -132,6 +138,9 @@ export function Tasks() {
       filters.status = 'in_progress';
     } else if (activeTab === 'completed') {
       filters.status = 'closed'; // Will be handled specially in the hook
+    } else if (activeTab === 'archived') {
+      filters.includeArchived = true;
+      filters.status = 'closed';
     }
     
     if (reviewStatusParam) {
@@ -350,6 +359,21 @@ export function Tasks() {
         >
           Completed Tasks
         </button>
+        {role === UserRole.SUPER_ADMIN && permissions.canViewArchivedTasks && (
+          <button
+            onClick={() => {
+              setActiveTab('archived');
+              setSearchParams({});
+            }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'archived'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Archived / Closed
+          </button>
+        )}
       </div>
 
       {showCreateForm && permissions.canCreateTasks && (

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client';
 import { TaskReviewStatus } from '@/lib/supabase/types';
+import { approveAndArchiveTask, rejectReviewAndReopen } from './taskArchiveService';
 
 /**
  * Task Review Service
@@ -8,6 +9,8 @@ import { TaskReviewStatus } from '@/lib/supabase/types';
 
 /**
  * Request review for a task
+ * Note: When a user marks a task as done, use markTaskDonePendingReview from taskArchiveService
+ * This function is kept for backward compatibility
  */
 export async function requestReview(
   taskId: string,
@@ -20,6 +23,7 @@ export async function requestReview(
       .update({
         review_status: TaskReviewStatus.PENDING_REVIEW,
         review_requested_by: userId,
+        review_requested_at: new Date().toISOString(),
       })
       .eq('id', taskId) as any);
 
@@ -46,93 +50,29 @@ export async function requestReview(
 }
 
 /**
- * Approve a task
+ * Approve a task and archive it
+ * This is the new workflow: approval automatically archives the task
  */
 export async function approveTask(
   taskId: string,
   userId: string,
   comments?: string
 ): Promise<{ error: Error | null }> {
-  try {
-    // Update to approved
-    const { error: updateError } = await ((supabase
-      .from('tasks') as any)
-      .update({
-        review_status: TaskReviewStatus.REVIEWED_APPROVED,
-        reviewed_by: userId,
-        reviewed_at: new Date().toISOString(),
-        review_comments: comments ?? null,
-      })
-      .eq('id', taskId) as any);
-
-    if (updateError) {
-      return { error: updateError as Error };
-    }
-
-    // Trigger notification via database function
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { error: notifyError } = await supabase.rpc('create_review_completed_notification', {
-      p_task_id: taskId,
-      p_reviewed_by: userId,
-      p_status: TaskReviewStatus.REVIEWED_APPROVED,
-    });
-
-    if (notifyError) {
-      console.error('Error creating review notification:', notifyError);
-      // Don't fail the request if notification fails
-    }
-
-    return { error: null };
-  } catch (error) {
-    return { error: error as Error };
-  }
+  // Use the new approve and archive function
+  return approveAndArchiveTask(taskId, userId, comments);
 }
 
 /**
- * Request changes for a task
+ * Request changes for a task (reject review and return to active)
+ * This is the new workflow: rejection returns task to active status
  */
 export async function requestChanges(
   taskId: string,
   userId: string,
   comments: string
 ): Promise<{ error: Error | null }> {
-  try {
-    if (!comments || comments.trim().length === 0) {
-      return { error: new Error('Comments are required when requesting changes') };
-    }
-
-    // Update task review status
-    const { error: updateError } = await ((supabase
-      .from('tasks') as any)
-      .update({
-        review_status: TaskReviewStatus.CHANGES_REQUESTED,
-        reviewed_by: userId,
-        reviewed_at: new Date().toISOString(),
-        review_comments: comments,
-      })
-      .eq('id', taskId) as any);
-
-    if (updateError) {
-      return { error: updateError as Error };
-    }
-
-    // Trigger notification via database function
-    // @ts-expect-error - Supabase type inference issue with strict TypeScript
-    const { error: notifyError } = await supabase.rpc('create_review_completed_notification', {
-      p_task_id: taskId,
-      p_reviewed_by: userId,
-      p_status: TaskReviewStatus.CHANGES_REQUESTED,
-    });
-
-    if (notifyError) {
-      console.error('Error creating review notification:', notifyError);
-      // Don't fail the request if notification fails
-    }
-
-    return { error: null };
-  } catch (error) {
-    return { error: error as Error };
-  }
+  // Use the new reject and reopen function
+  return rejectReviewAndReopen(taskId, userId, comments);
 }
 
 /**
