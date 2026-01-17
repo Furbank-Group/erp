@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtime } from '@/contexts/RealtimeContext';
@@ -18,6 +18,43 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Memoize filters to prevent unnecessary re-fetches
+  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  
+  // Debounce state updates to prevent excessive re-renders
+  const updateQueueRef = useRef<Array<(prev: Project[]) => Project[]>>([]);
+  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const flushUpdates = useCallback(() => {
+    if (updateQueueRef.current.length === 0) return;
+    
+    const updates = [...updateQueueRef.current];
+    updateQueueRef.current = [];
+    
+    setProjects((prev) => {
+      let result = prev;
+      updates.forEach((update) => {
+        result = update(result);
+      });
+      return result;
+    });
+  }, []);
+  
+  const queueUpdate = useCallback((update: (prev: Project[]) => Project[]) => {
+    updateQueueRef.current.push(update);
+    
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
+    
+    updateTimerRef.current = setTimeout(() => {
+      flushUpdates();
+      updateTimerRef.current = null;
+    }, 100); // Debounce by 100ms
+  }, [flushUpdates]);
 
   // Fetch initial projects
   const fetchProjects = useCallback(async () => {
@@ -38,7 +75,7 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
         query = query.eq('status', filters.status);
       }
 
-      query = query.order('created_at', { ascending: false });
+      query = query.order('created_at', { ascending: false }).limit(500); // Limit to prevent excessive data
 
       const { data, error: fetchError } = await query;
 
@@ -50,7 +87,7 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
     } finally {
       setLoading(false);
     }
-  }, [user, filters]);
+  }, [user, filtersKey]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -83,17 +120,19 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
         table: 'projects',
         filter: filterString,
         callback: (payload) => {
+          const currentFilters = filtersRef.current;
+          
           if (payload.eventType === 'INSERT') {
             const newProject = payload.new as Project;
             
             // Check if project matches filters
             let matchesFilter = true;
-            if (filters?.status && newProject.status !== filters.status) {
+            if (currentFilters?.status && newProject.status !== currentFilters.status) {
               matchesFilter = false;
             }
 
             if (matchesFilter) {
-              setProjects((prev) => {
+              queueUpdate((prev) => {
                 // Check if project already exists (avoid duplicates)
                 if (prev.some((p) => p.id === newProject.id)) {
                   return prev;
@@ -106,11 +145,11 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
             
             // Check if project still matches filters
             let matchesFilter = true;
-            if (filters?.status && updatedProject.status !== filters.status) {
+            if (currentFilters?.status && updatedProject.status !== currentFilters.status) {
               matchesFilter = false;
             }
 
-            setProjects((prev) => {
+            queueUpdate((prev) => {
               const existingIndex = prev.findIndex((p) => p.id === updatedProject.id);
               
               if (existingIndex >= 0) {
@@ -132,7 +171,7 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
             });
           } else if (payload.eventType === 'DELETE') {
             const deletedProject = payload.old as Project;
-            setProjects((prev) => prev.filter((p) => p.id !== deletedProject.id));
+            queueUpdate((prev) => prev.filter((p) => p.id !== deletedProject.id));
           }
         },
       }
@@ -140,8 +179,13 @@ export function useRealtimeProjects(filters?: ProjectFilters) {
 
     return () => {
       unsubscribe();
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+      flushUpdates(); // Flush any pending updates
     };
-  }, [user, isConnected, filters, fetchProjects, subscribe]);
+  }, [user, isConnected, filtersKey, fetchProjects, subscribe, flushUpdates]);
 
   return { projects, loading, error, refetch: fetchProjects };
 }

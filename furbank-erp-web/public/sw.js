@@ -1,9 +1,11 @@
 // Service Worker for Furbank ERP PWA
 // Version-based cache invalidation
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const APP_SHELL_CACHE = `app-shell-${CACHE_VERSION}`;
 const STATIC_ASSETS_CACHE = `static-assets-${CACHE_VERSION}`;
 const API_CACHE = `api-cache-${CACHE_VERSION}`;
+const IMAGE_CACHE = `images-${CACHE_VERSION}`;
+const MAX_CACHE_SIZE = 50 * 1024 * 1024; // 50MB max cache size
 
 // Assets to cache on install (app shell)
 const APP_SHELL_ASSETS = [
@@ -49,31 +51,76 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and manage cache size
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => {
-            // Delete old cache versions
-            return (
-              name.startsWith('app-shell-') ||
-              name.startsWith('static-assets-') ||
-              name.startsWith('api-cache-')
-            ) && !name.includes(CACHE_VERSION);
-          })
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    })
+    Promise.all([
+      // Clean up old cache versions
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => {
+              // Delete old cache versions
+              return (
+                name.startsWith('app-shell-') ||
+                name.startsWith('static-assets-') ||
+                name.startsWith('api-cache-') ||
+                name.startsWith('images-')
+              ) && !name.includes(CACHE_VERSION);
+            })
+            .map((name) => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      }),
+      // Manage cache size
+      manageCacheSize(),
+    ])
   );
   // Take control of all clients immediately
   return self.clients.claim();
 });
+
+// Manage cache size to prevent excessive storage usage
+async function manageCacheSize() {
+  const cacheNames = await caches.keys();
+  let totalSize = 0;
+  const cacheSizes = new Map();
+
+  // Calculate sizes for each cache
+  for (const cacheName of cacheNames) {
+    const cache = await caches.open(cacheName);
+    const keys = await cache.keys();
+    let size = 0;
+    
+    for (const key of keys) {
+      const response = await cache.match(key);
+      if (response) {
+        const blob = await response.blob();
+        size += blob.size;
+      }
+    }
+    
+    cacheSizes.set(cacheName, size);
+    totalSize += size;
+  }
+
+  // If total size exceeds limit, clear oldest caches
+  if (totalSize > MAX_CACHE_SIZE) {
+    const sortedCaches = Array.from(cacheSizes.entries())
+      .sort((a, b) => a[1] - b[1]); // Sort by size (smallest first)
+    
+    // Delete smallest caches until under limit
+    for (const [cacheName, size] of sortedCaches) {
+      if (totalSize <= MAX_CACHE_SIZE) break;
+      await caches.delete(cacheName);
+      totalSize -= size;
+      console.log(`[SW] Deleted cache ${cacheName} to manage size`);
+    }
+  }
+}
 
 // Fetch event - implement caching strategies
 self.addEventListener('fetch', (event) => {
@@ -102,14 +149,42 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - Cache First strategy
+  // Images - Cache First with size limits
+  if (
+    url.origin === self.location.origin &&
+    (request.destination === 'image' || url.pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|avif)$/i))
+  ) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(request).then((response) => {
+          // Only cache successful image responses
+          if (response.status === 200 && response.headers.get('content-length')) {
+            const contentLength = parseInt(response.headers.get('content-length') ?? '0', 10);
+            // Only cache images smaller than 5MB
+            if (contentLength < 5 * 1024 * 1024) {
+              const responseToCache = response.clone();
+              caches.open(IMAGE_CACHE).then((cache) => {
+                cache.put(request, responseToCache);
+              });
+            }
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Static assets (JS, CSS, fonts) - Cache First strategy
   if (
     url.origin === self.location.origin &&
     (request.destination === 'script' ||
       request.destination === 'style' ||
-      request.destination === 'image' ||
       request.destination === 'font' ||
-      url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/))
+      url.pathname.match(/\.(js|css|woff|woff2|ttf|eot)$/))
   ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {

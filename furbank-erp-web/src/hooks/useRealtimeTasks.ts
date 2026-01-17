@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRealtime } from '@/contexts/RealtimeContext';
@@ -28,6 +28,43 @@ export function useRealtimeTasks(filters?: TaskFilters) {
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Memoize filters to prevent unnecessary re-fetches
+  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  
+  // Debounce state updates to prevent excessive re-renders
+  const updateQueueRef = useRef<Array<(prev: TaskWithRelations[]) => TaskWithRelations[]>>([]);
+  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const flushUpdates = useCallback(() => {
+    if (updateQueueRef.current.length === 0) return;
+    
+    const updates = [...updateQueueRef.current];
+    updateQueueRef.current = [];
+    
+    setTasks((prev) => {
+      let result = prev;
+      updates.forEach((update) => {
+        result = update(result);
+      });
+      return result;
+    });
+  }, []);
+  
+  const queueUpdate = useCallback((update: (prev: TaskWithRelations[]) => TaskWithRelations[]) => {
+    updateQueueRef.current.push(update);
+    
+    if (updateTimerRef.current) {
+      clearTimeout(updateTimerRef.current);
+    }
+    
+    updateTimerRef.current = setTimeout(() => {
+      flushUpdates();
+      updateTimerRef.current = null;
+    }, 100); // Debounce by 100ms
+  }, [flushUpdates]);
 
   // Fetch initial tasks
   const fetchTasks = useCallback(async () => {
@@ -181,7 +218,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
     } finally {
       setLoading(false);
     }
-  }, [user, filters]);
+  }, [user, filtersKey]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -220,6 +257,8 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         table: 'tasks',
         filter: filterString,
         callback: (payload: any) => {
+          const currentFilters = filtersRef.current;
+          
           if (payload.eventType === 'INSERT') {
             // Use payload data directly, fetch relations in parallel if needed
             const newTask = payload.new as any;
@@ -227,21 +266,21 @@ export function useRealtimeTasks(filters?: TaskFilters) {
             // Check if task matches current filters
             let matchesFilter = true;
             
-            if (filters?.status) {
-              if (filters.status === 'closed' && newTask.status !== TaskStatus.CLOSED) {
+            if (currentFilters?.status) {
+              if (currentFilters.status === 'closed' && newTask.status !== TaskStatus.CLOSED) {
                 matchesFilter = false;
-              } else if (filters.status === 'to_do' && newTask.status !== TaskStatus.TO_DO) {
+              } else if (currentFilters.status === 'to_do' && newTask.status !== TaskStatus.TO_DO) {
                 matchesFilter = false;
-              } else if (filters.status === 'in_progress' && newTask.status !== TaskStatus.IN_PROGRESS) {
+              } else if (currentFilters.status === 'in_progress' && newTask.status !== TaskStatus.IN_PROGRESS) {
                 matchesFilter = false;
-              } else if (filters.status === 'blocked' && newTask.status !== TaskStatus.BLOCKED) {
+              } else if (currentFilters.status === 'blocked' && newTask.status !== TaskStatus.BLOCKED) {
                 matchesFilter = false;
-              } else if (filters.status === 'done' && newTask.status !== TaskStatus.DONE) {
+              } else if (currentFilters.status === 'done' && newTask.status !== TaskStatus.DONE) {
                 matchesFilter = false;
               }
             }
 
-            if (filters?.reviewStatus && newTask.review_status !== filters.reviewStatus) {
+            if (currentFilters?.reviewStatus && newTask.review_status !== currentFilters.reviewStatus) {
               matchesFilter = false;
             }
 
@@ -291,7 +330,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
               }
               
               Promise.all(promises).then(([project, assignedUser]) => {
-                setTasks((prev) => {
+                queueUpdate((prev) => {
                   // Check if task already exists (avoid duplicates)
                   if (prev.some((t) => t.id === newTask.id)) {
                     return prev;
@@ -313,25 +352,25 @@ export function useRealtimeTasks(filters?: TaskFilters) {
             // Check if task still matches filters
             let matchesFilter = true;
             
-            if (filters?.status) {
-              if (filters.status === 'closed' && updatedTask.status !== TaskStatus.CLOSED) {
+            if (currentFilters?.status) {
+              if (currentFilters.status === 'closed' && updatedTask.status !== TaskStatus.CLOSED) {
                 matchesFilter = false;
-              } else if (filters.status === 'to_do' && updatedTask.status !== TaskStatus.TO_DO) {
+              } else if (currentFilters.status === 'to_do' && updatedTask.status !== TaskStatus.TO_DO) {
                 matchesFilter = false;
-              } else if (filters.status === 'in_progress' && updatedTask.status !== TaskStatus.IN_PROGRESS) {
+              } else if (currentFilters.status === 'in_progress' && updatedTask.status !== TaskStatus.IN_PROGRESS) {
                 matchesFilter = false;
-              } else if (filters.status === 'blocked' && updatedTask.status !== TaskStatus.BLOCKED) {
+              } else if (currentFilters.status === 'blocked' && updatedTask.status !== TaskStatus.BLOCKED) {
                 matchesFilter = false;
-              } else if (filters.status === 'done' && updatedTask.status !== TaskStatus.DONE) {
+              } else if (currentFilters.status === 'done' && updatedTask.status !== TaskStatus.DONE) {
                 matchesFilter = false;
               }
             }
 
-            if (filters?.reviewStatus && updatedTask.review_status !== filters.reviewStatus) {
+            if (currentFilters?.reviewStatus && updatedTask.review_status !== currentFilters.reviewStatus) {
               matchesFilter = false;
             }
 
-            setTasks((prev) => {
+            queueUpdate((prev) => {
               const existingIndex = prev.findIndex((t) => t.id === updatedTask.id);
               
               if (existingIndex >= 0) {
@@ -399,7 +438,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
                   }
                   
                   Promise.all(promises).then(([project, assignedUser]) => {
-                    setTasks((prevTasks) => {
+                    queueUpdate((prevTasks) => {
                       if (prevTasks.some((t) => t.id === updatedTask.id)) {
                         return prevTasks;
                       }
@@ -430,7 +469,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
             });
           } else if (payload.eventType === 'DELETE') {
             const deletedTask = payload.old as any;
-            setTasks((prev) => prev.filter((t) => t.id !== deletedTask.id));
+            queueUpdate((prev) => prev.filter((t) => t.id !== deletedTask.id));
           }
         },
       }
@@ -438,8 +477,13 @@ export function useRealtimeTasks(filters?: TaskFilters) {
 
     return () => {
       unsubscribe();
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+        updateTimerRef.current = null;
+      }
+      flushUpdates(); // Flush any pending updates
     };
-  }, [user, isConnected, filters, fetchTasks, subscribe]);
+  }, [user, isConnected, filtersKey, fetchTasks, subscribe, flushUpdates]);
 
   return { tasks, loading, error, refetch: fetchTasks };
 }

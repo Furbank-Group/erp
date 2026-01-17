@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, memo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -6,6 +6,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { SyncProvider } from './contexts/SyncContext';
 import { RealtimeProvider } from './contexts/RealtimeContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy load page components for code splitting
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -17,15 +18,16 @@ const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default:
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
 
-// Loading fallback component
-const PageLoadingFallback = () => (
+// Loading fallback component - memoized to prevent re-renders
+const PageLoadingFallback = memo(() => (
   <div className="min-h-screen flex items-center justify-center">
     <div className="text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
       <p className="text-muted-foreground">Loading...</p>
     </div>
   </div>
-);
+));
+PageLoadingFallback.displayName = 'PageLoadingFallback';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -156,19 +158,21 @@ function AppRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <ThemeProvider>
-        <AuthProvider>
-          <RealtimeProvider>
-            <SyncProvider>
-              <NotificationProvider>
-                <AppRoutes />
-              </NotificationProvider>
-            </SyncProvider>
-          </RealtimeProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ThemeProvider>
+          <AuthProvider>
+            <RealtimeProvider>
+              <SyncProvider>
+                <NotificationProvider>
+                  <AppRoutes />
+                </NotificationProvider>
+              </SyncProvider>
+            </RealtimeProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

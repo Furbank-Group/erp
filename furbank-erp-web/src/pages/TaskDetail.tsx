@@ -158,45 +158,45 @@ export function TaskDetail() {
     // Note: Assigned users are now fetched separately via getTaskAssignees
     // This is handled in the useEffect hook below
 
-    // Fetch review requester and reviewer in parallel
+    // Fetch review requester and reviewer in a single batch query
     const userIds: string[] = [];
     if (task.review_requested_by) userIds.push(task.review_requested_by);
     if (task.reviewed_by) userIds.push(task.reviewed_by);
 
     if (userIds.length > 0) {
-      // Fetch all users with roles in parallel
-      Promise.all(
-        userIds.map((userId) =>
-          supabase
-            .from('users')
-            .select('*, roles(*)')
-            .eq('id', userId)
-            .single()
-            .then(({ data }) => {
-              if (data) {
-                const user = data as any;
-                return {
-                  id: userId,
-                  user: {
-                    ...user,
-                    roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
-                  } as UserWithRole,
-                };
-              }
-              return null;
-            })
-        )
-      ).then((results) => {
-        results.forEach((result) => {
-          if (!result) return;
-          if (result.id === task.review_requested_by) {
-            setReviewRequestedBy(result.user);
+      // Batch fetch all users with roles in a single query
+      supabase
+        .from('users')
+        .select('*, roles:roles!users_role_id_fkey(*)')
+        .in('id', userIds)
+        .then(({ data: usersData, error }) => {
+          if (error) {
+            console.error('Error fetching review users:', error);
+            setReviewRequestedBy(null);
+            setReviewedBy(null);
+            return;
           }
-          if (result.id === task.reviewed_by) {
-            setReviewedBy(result.user);
+
+          if (usersData && usersData.length > 0) {
+            const usersMap = new Map(
+              usersData.map((userData: any) => {
+                const user = {
+                  ...userData,
+                  roles: Array.isArray(userData.roles) && userData.roles.length > 0
+                    ? userData.roles[0]
+                    : (userData.roles ?? null),
+                } as UserWithRole;
+                return [userData.id, user];
+              })
+            );
+
+            setReviewRequestedBy(usersMap.get(task.review_requested_by ?? '') ?? null);
+            setReviewedBy(usersMap.get(task.reviewed_by ?? '') ?? null);
+          } else {
+            setReviewRequestedBy(null);
+            setReviewedBy(null);
           }
         });
-      });
     } else {
       setReviewRequestedBy(null);
       setReviewedBy(null);
@@ -237,9 +237,10 @@ export function TaskDetail() {
 
     if (userIds.size > 0) {
       const userIdsArray = Array.from(userIds);
+      // Batch fetch users with roles in a single query using join
       supabase
         .from('users')
-        .select('*')
+        .select('*, roles:roles!users_role_id_fkey(*)')
         .in('id', userIdsArray)
         .then(({ data: usersData, error }) => {
           if (error) {
@@ -249,19 +250,14 @@ export function TaskDetail() {
           }
 
           if (usersData && usersData.length > 0) {
-            Promise.all(
-              usersData.map(async (userData: any) => {
-                if (userData.role_id) {
-                  const { data: roleData } = await supabase
-                    .from('roles')
-                    .select('*')
-                    .eq('id', userData.role_id)
-                    .single();
-                  return { ...userData, roles: roleData ?? undefined } as UserWithRole;
-                }
-                return { ...userData } as UserWithRole;
-              })
-            ).then(setTaskUsers);
+            // Transform users with roles
+            const usersWithRoles = usersData.map((userData: any) => ({
+              ...userData,
+              roles: Array.isArray(userData.roles) && userData.roles.length > 0 
+                ? userData.roles[0] 
+                : (userData.roles ?? undefined),
+            })) as UserWithRole[];
+            setTaskUsers(usersWithRoles);
           } else {
             setTaskUsers([]);
           }
@@ -952,12 +948,14 @@ export function TaskDetail() {
                         className="group relative block border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200 bg-card"
                       >
                         {isImage ? (
-                          // Show thumbnail for images
+                          // Show thumbnail for images with lazy loading
                           <div className="aspect-square relative bg-muted">
                             <img
                               src={fileUrl}
                               alt={file.file_name}
                               className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 // Fallback to icon if image fails to load
                                 (e.target as HTMLImageElement).style.display = 'none';

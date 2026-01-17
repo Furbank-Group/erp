@@ -173,11 +173,13 @@ export function Tasks() {
 
   const fetchProjects = async () => {
     try {
+      // Only fetch active projects with minimal fields needed for selection
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('id, name')
         .eq('status', 'active')
-        .order('name');
+        .order('name')
+        .limit(100); // Limit to prevent excessive data
 
       if (error) throw error;
       setProjects(data ?? []);
@@ -188,11 +190,13 @@ export function Tasks() {
 
   const fetchUsers = async () => {
     try {
+      // Only fetch active users with minimal fields needed for selection
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, email, full_name')
         .eq('is_active', true)
-        .order('full_name');
+        .order('full_name')
+        .limit(100); // Limit to prevent excessive data
 
       if (error) throw error;
       setUsers(data ?? []);
