@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
@@ -14,17 +14,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { isTaskClosed } from '@/lib/services/projectService';
 import { Skeleton, SkeletonCard } from '@/components/skeletons';
+import { EditRequestButton } from '@/components/tasks/EditRequestButton';
+import { EditRequestForm } from '@/components/tasks/EditRequestForm';
+import { EditTaskForm } from '@/components/tasks/EditTaskForm';
+import { EditRequestReview } from '@/components/tasks/EditRequestReview';
+import { DeleteTaskButton } from '@/components/tasks/DeleteTaskButton';
+import { getTaskAssignees } from '@/lib/services/taskAssignmentService';
+import { getEditRequests } from '@/lib/services/taskEditRequestService';
+import type { TaskEditRequest } from '@/lib/supabase/types';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, permissions, role } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
-  const [assignedUser, setAssignedUser] = useState<UserWithRole | null>(null);
   const [taskUsers, setTaskUsers] = useState<UserWithRole[]>([]);
   const [newComment, setNewComment] = useState('');
   const [newNote, setNewNote] = useState('');
@@ -33,6 +40,11 @@ export function TaskDetail() {
   const [reviewRequestedBy, setReviewRequestedBy] = useState<UserWithRole | null>(null);
   const [reviewedBy, setReviewedBy] = useState<UserWithRole | null>(null);
   const [loadingReview, setLoadingReview] = useState(false);
+  const [showEditRequestForm, setShowEditRequestForm] = useState(false);
+  const [showEditTaskForm, setShowEditTaskForm] = useState(false);
+  const [pendingEditRequest, setPendingEditRequest] = useState<TaskEditRequest | null>(null);
+  const [taskAssignees, setTaskAssignees] = useState<UserWithRole[]>([]);
+  const [isUserAssignedToTask, setIsUserAssignedToTask] = useState(false);
 
   // Fetch single task with real-time updates
   const [task, setTask] = useState<Task | null>(null);
@@ -90,8 +102,7 @@ export function TaskDetail() {
               .from('tasks')
               .select(`
                 *,
-                projects!left (*),
-                assigned_user:users!assigned_to(*, roles(*))
+                projects!left (*)
               `)
               .eq('id', id)
               .single()
@@ -144,28 +155,8 @@ export function TaskDetail() {
       setProject(null);
     }
 
-    // Extract assigned user from task (already included in join)
-    if (taskData.assigned_user) {
-      setAssignedUser(taskData.assigned_user as UserWithRole);
-    } else if (task.assigned_to) {
-      // Fallback: fetch with join
-      supabase
-        .from('users')
-        .select('*, roles(*)')
-        .eq('id', task.assigned_to)
-        .single()
-        .then(({ data: assignedUserData }) => {
-          if (assignedUserData) {
-            const user = assignedUserData as any;
-            setAssignedUser({
-              ...user,
-              roles: Array.isArray(user.roles) ? user.roles[0] : user.roles,
-            } as UserWithRole);
-          }
-        });
-    } else {
-      setAssignedUser(null);
-    }
+    // Note: Assigned users are now fetched separately via getTaskAssignees
+    // This is handled in the useEffect hook below
 
     // Fetch review requester and reviewer in parallel
     const userIds: string[] = [];
@@ -212,39 +203,43 @@ export function TaskDetail() {
     }
   }, [task, id]);
 
-  // Fetch task users when task, comments, notes, or files change
+  // Create stable reference for assignee IDs to avoid dependency array size changes
+  const assigneeIdsString = useMemo(() => {
+    return taskAssignees.map(a => a.id).sort().join(',');
+  }, [taskAssignees]);
+
+  // Fetch task users when task, comments, notes, files, or assignees change
   useEffect(() => {
     if (!task || !id) return;
     
-      const userIds = new Set<string>();
-      
-      if (task.assigned_to) {
-        userIds.add(task.assigned_to);
+    const userIds = new Set<string>();
+    
+    // Add assignees from taskAssignees (multi-assignee model)
+    taskAssignees.forEach(assignee => userIds.add(assignee.id));
+    
+    comments.forEach((comment) => {
+      if ((comment as any).user_id) {
+        userIds.add((comment as any).user_id);
       }
-      
-      comments.forEach((comment) => {
-        if ((comment as any).user_id) {
-          userIds.add((comment as any).user_id);
-        }
-      });
-      
-      notes.forEach((note) => {
-        if ((note as any).user_id) {
-          userIds.add((note as any).user_id);
-        }
-      });
-      
-      files.forEach((file) => {
-        if ((file as any).user_id) {
-          userIds.add((file as any).user_id);
-        }
-      });
+    });
+    
+    notes.forEach((note) => {
+      if ((note as any).user_id) {
+        userIds.add((note as any).user_id);
+      }
+    });
+    
+    files.forEach((file) => {
+      if ((file as any).user_id) {
+        userIds.add((file as any).user_id);
+      }
+    });
 
-      if (userIds.size > 0) {
-        const userIdsArray = Array.from(userIds);
+    if (userIds.size > 0) {
+      const userIdsArray = Array.from(userIds);
       supabase
-          .from('users')
-          .select('*')
+        .from('users')
+        .select('*')
         .in('id', userIdsArray)
         .then(({ data: usersData, error }) => {
           if (error) {
@@ -253,29 +248,87 @@ export function TaskDetail() {
             return;
           }
 
-        if (usersData && usersData.length > 0) {
+          if (usersData && usersData.length > 0) {
             Promise.all(
               usersData.map(async (userData: any) => {
                 if (userData.role_id) {
-                const { data: roleData } = await supabase
-                  .from('roles')
-                  .select('*')
+                  const { data: roleData } = await supabase
+                    .from('roles')
+                    .select('*')
                     .eq('id', userData.role_id)
-                  .single();
+                    .single();
                   return { ...userData, roles: roleData ?? undefined } as UserWithRole;
-              }
+                }
                 return { ...userData } as UserWithRole;
-            })
+              })
             ).then(setTaskUsers);
-        } else {
-          setTaskUsers([]);
-        }
+          } else {
+            setTaskUsers([]);
+          }
         });
-      } else {
-        setTaskUsers([]);
-      }
-  }, [task, comments, notes, files, id]);
+    } else {
+      setTaskUsers([]);
+    }
+  }, [task, comments, notes, files, id, assigneeIdsString]);
 
+  // Fetch pending edit requests
+  useEffect(() => {
+    if (!id) return;
+    
+    const fetchPendingRequests = async () => {
+      const { data, error } = await getEditRequests(id);
+      if (!error && data) {
+        const pending = data.find(req => req.status === 'pending');
+        setPendingEditRequest(pending ?? null);
+      }
+    };
+    
+    fetchPendingRequests();
+  }, [id, task?.review_status]);
+
+  // Fetch task assignees and check if user is assigned
+  useEffect(() => {
+    if (!id || !user) return;
+    
+    const fetchAssignees = async () => {
+      const { data, error } = await getTaskAssignees(id);
+      if (!error && data) {
+        // Extract full user objects from assignees
+        const assigneeUsers = data
+          .map(a => a.user)
+          .filter((u): u is UserWithRole => u !== null && u !== undefined);
+        setTaskAssignees(assigneeUsers);
+        setIsUserAssignedToTask(assigneeUsers.some(a => a.id === user.id));
+      } else {
+        setTaskAssignees([]);
+        setIsUserAssignedToTask(false);
+      }
+    };
+    
+    fetchAssignees();
+    
+    // Subscribe to task_assignees changes for real-time updates
+    const channel = supabase
+      .channel(`task_assignees:${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_assignees',
+          filter: `task_id=eq.${id}`,
+        },
+        () => {
+          // Refetch assignees when changes occur
+          fetchAssignees();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, user]);
 
   const handleAddComment = async () => {
     if (!id || !newComment.trim() || !user) return;
@@ -390,9 +443,9 @@ export function TaskDetail() {
       return;
     }
 
-    // Check if user is assigned to this task
-    if (task && task.assigned_to !== user.id) {
-      alert('Only the assigned user can update task status.');
+    // Check if user is assigned to this task (using multi-assignee)
+    if (task && !isUserAssignedToTask) {
+      alert('Only assigned users can update task status.');
       return;
     }
 
@@ -567,6 +620,27 @@ export function TaskDetail() {
             <p className="text-muted-foreground italic">Standalone Task (No Project)</p>
           )}
         </div>
+        <div className="flex gap-2">
+          {permissions.canEditTasks && !taskIsClosed && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEditTaskForm(true)}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Task
+            </Button>
+          )}
+          {!permissions.canEditTasks && permissions.canRequestTaskEdit && !taskIsClosed && (
+            <EditRequestButton
+              taskId={id ?? ''}
+              onRequestClick={() => setShowEditRequestForm(true)}
+            />
+          )}
+          {permissions.canDeleteTasks && task && (
+            <DeleteTaskButton task={task} onDeleted={() => navigate('/tasks')} />
+          )}
+        </div>
       </div>
 
       {taskIsClosed && (
@@ -592,6 +666,98 @@ export function TaskDetail() {
         </Card>
       )}
 
+      {/* Task Under Edit Review Banner */}
+      {pendingEditRequest && !permissions.canApproveTaskEdits && (
+        <Card className="border-2 border-yellow-500 dark:border-yellow-700">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              <div>
+                <p className="font-medium text-yellow-900 dark:text-yellow-100">
+                  Task Under Edit Review
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  This task has a pending edit request. No further edits can be requested until the current request is approved or rejected.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Direct Edit Form (Super Admin) */}
+      {showEditTaskForm && permissions.canEditTasks && !taskIsClosed && (
+        <EditTaskForm
+          task={task}
+          onClose={() => setShowEditTaskForm(false)}
+          onSuccess={() => {
+            setShowEditTaskForm(false);
+            // Refresh task data
+            if (id) {
+              supabase
+                .from('tasks')
+                .select('*')
+                .eq('id', id)
+                .single()
+                .then(({ data }) => {
+                  if (data) setTask(data);
+                });
+            }
+          }}
+        />
+      )}
+
+      {/* Edit Request Form (Admin) */}
+      {showEditRequestForm && permissions.canRequestTaskEdit && !permissions.canEditTasks && !taskIsClosed && !pendingEditRequest && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Request Task Edit</CardTitle>
+            <CardDescription>
+              Propose changes to this task. A Super Admin will review and approve your request.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EditRequestForm
+              task={task}
+              onClose={() => setShowEditRequestForm(false)}
+              onSuccess={() => {
+                setShowEditRequestForm(false);
+                // Refresh pending requests
+                if (id) {
+                  getEditRequests(id).then(({ data }) => {
+                    if (data) {
+                      const pending = data.find(req => req.status === 'pending');
+                      setPendingEditRequest(pending ?? null);
+                    }
+                  });
+                }
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Edit Request Review (for Super Admins) */}
+      {pendingEditRequest && permissions.canApproveTaskEdits && task && (
+        <EditRequestReview
+          request={{ ...pendingEditRequest, task }}
+          onReviewed={() => {
+            setPendingEditRequest(null);
+            // Refresh task data
+            if (id) {
+              supabase
+                .from('tasks')
+                .select('*')
+                .eq('id', id)
+                .single()
+                .then(({ data }) => {
+                  if (data) setTask(data);
+                });
+            }
+          }}
+        />
+      )}
+
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
           <Card>
@@ -611,7 +777,7 @@ export function TaskDetail() {
                 <CardTitle>Comments</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
+                {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
                   <div className="flex gap-2">
                     <Textarea
                       value={newComment}
@@ -622,7 +788,7 @@ export function TaskDetail() {
                     <Button onClick={handleAddComment}>Post</Button>
                   </div>
                 )}
-                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
                   <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
                     Only the assigned user or Super Admin can add comments.
                   </div>
@@ -673,7 +839,7 @@ export function TaskDetail() {
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
+                {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
                   <div className="flex gap-2">
                     <Textarea
                       value={newNote}
@@ -684,7 +850,7 @@ export function TaskDetail() {
                     <Button onClick={handleAddNote}>Add Note</Button>
                   </div>
                 )}
-                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
                   <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
                     Only the assigned user or Super Admin can add notes.
                   </div>
@@ -726,7 +892,7 @@ export function TaskDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!taskIsClosed && (task.assigned_to === user?.id || role === UserRole.SUPER_ADMIN) && (
+                {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
                   <div className="space-y-2">
                     <div className="flex gap-2">
                       <Input
@@ -743,7 +909,7 @@ export function TaskDetail() {
                     </p>
                   </div>
                 )}
-                {!taskIsClosed && task.assigned_to !== user?.id && role !== UserRole.SUPER_ADMIN && (
+                {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
                   <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
                     Only the assigned user or Super Admin can upload files.
                   </div>
@@ -840,21 +1006,6 @@ export function TaskDetail() {
               <CardTitle>Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Assigned User */}
-              {assignedUser && (
-                <div className="space-y-2">
-                  <Label>Assigned To</Label>
-                  <div className="text-sm">
-                    <p className="font-medium">{assignedUser.full_name ?? assignedUser.email ?? 'Unknown'}</p>
-                    {(assignedUser as any).roles && (
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {((assignedUser as any).roles as { name: string }).name.replace('_', ' ')}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              
               {/* Team Members */}
               {taskUsers.length > 0 && (
                 <div className="space-y-2">
@@ -862,7 +1013,7 @@ export function TaskDetail() {
                   <div className="space-y-2">
                     {taskUsers.map((user) => {
                       const role = (user as any).roles as { name: string } | null;
-                      const isAssigned = user.id === task?.assigned_to;
+                      const isAssigned = taskAssignees.some(a => a.id === user.id);
                       return (
                         <div key={user.id} className="text-sm">
                           <div className="flex items-center gap-2">
@@ -890,7 +1041,7 @@ export function TaskDetail() {
               {/* Status: Only assigned user can update, and only if task is not closed */}
               <div className="space-y-2">
                 <Label>Status</Label>
-                {permissions.canUpdateTaskStatus && task.assigned_to === user?.id && !taskIsClosed ? (
+                {permissions.canUpdateTaskStatus && isUserAssignedToTask && !taskIsClosed ? (
                   <Select
                     value={task.status}
                     onChange={(e) => handleUpdateTask('status', e.target.value)}
@@ -912,9 +1063,9 @@ export function TaskDetail() {
                     );
                   })()
                 )}
-                {task.assigned_to !== user?.id && (
+                {!isUserAssignedToTask && (
                   <p className="text-xs text-muted-foreground">
-                    Only the assigned user can update status
+                    Only assigned users can update status
                   </p>
                 )}
               </div>
@@ -991,7 +1142,7 @@ export function TaskDetail() {
               )}
 
               {/* Staff: Request Review - Only assigned user, disabled for closed tasks */}
-              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && task.assigned_to === user?.id && (
+              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && isUserAssignedToTask && (
                 <div>
                   {task.review_status === TaskReviewStatus.NONE ||
                   task.review_status === null ||
@@ -1011,7 +1162,7 @@ export function TaskDetail() {
                   )}
                 </div>
               )}
-              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && task.assigned_to !== user?.id && (
+              {permissions.canRequestReview && !permissions.canReviewTasks && !taskIsClosed && !isUserAssignedToTask && (
                 <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
                   Only the assigned user can request review.
                 </div>

@@ -14,8 +14,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
+import { assignTask } from '@/lib/services/taskAssignmentService';
 import { isTaskClosed } from '@/lib/services/projectService';
 import { Skeleton, SkeletonTaskCard } from '@/components/skeletons';
+import { AssigneeSelector } from '@/components/tasks/AssigneeSelector';
 
 // Memoized task list item component
 const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
@@ -108,7 +110,7 @@ export function Tasks() {
     title: '',
     description: '',
     project_id: '',
-    assigned_to: '',
+    assignee_ids: [] as string[],
     due_date: '',
     priority: 'medium' as TaskPriority,
     status: 'to_do' as TaskStatus,
@@ -204,14 +206,8 @@ export function Tasks() {
     if (!permissions.canCreateTasks) return;
     
     // Enforce assignment permission: only users with canAssignTasks can assign tasks
-    if (formData.assigned_to && !permissions.canAssignTasks) {
+    if (formData.assignee_ids.length > 0 && !permissions.canAssignTasks) {
       alert('You do not have permission to assign tasks. Only Admins and Super Admins can assign tasks.');
-      return;
-    }
-
-    // Enforce single assignee constraint
-    if (formData.assigned_to && formData.assigned_to.split(',').length > 1) {
-      alert('A task can only be assigned to one user.');
       return;
     }
 
@@ -220,24 +216,37 @@ export function Tasks() {
       if (!authUser) throw new Error('Not authenticated');
 
       // @ts-expect-error - Supabase type inference issue with strict TypeScript
-      const { error } = await supabase.from('tasks').insert({
+      const { data: newTask, error } = await supabase.from('tasks').insert({
         title: formData.title,
         description: formData.description || null,
         project_id: formData.project_id || null, // Allow null for standalone tasks
-        assigned_to: formData.assigned_to || null, // Single assignee only
+        assigned_to: null, // Use task_assignees for multi-assign
         due_date: formData.due_date || null,
         priority: formData.priority,
         status: formData.status,
         created_by: authUser.id,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+
+      const taskId = (newTask as any)?.id;
+      if (taskId && formData.assignee_ids.length > 0) {
+        const { error: assignError } = await assignTask(
+          taskId,
+          formData.assignee_ids,
+          authUser.id
+        );
+        if (assignError) {
+          console.error('Error assigning users:', assignError);
+          alert('Task created, but assigning users failed.');
+        }
+      }
 
       setFormData({
         title: '',
         description: '',
         project_id: '',
-        assigned_to: '',
+        assignee_ids: [],
         due_date: '',
         priority: TaskPriority.MEDIUM,
         status: TaskStatus.TO_DO,
@@ -385,21 +394,14 @@ export function Tasks() {
                     Leave as "Standalone Task" for operational tasks not tied to a project
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assigned_to">Assign To</Label>
-                  <Select
-                    id="assigned_to"
-                    value={formData.assigned_to}
-                    onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                  >
-                    <option value="">Unassigned</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name ?? u.email}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                <AssigneeSelector
+                  taskId="new-task-temp-id"
+                  allUsers={users}
+                  selectedAssigneeIds={formData.assignee_ids}
+                  onSelectionChange={(selectedIds) => {
+                    setFormData({ ...formData, assignee_ids: selectedIds });
+                  }}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

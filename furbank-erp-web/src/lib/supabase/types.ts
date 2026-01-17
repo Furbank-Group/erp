@@ -43,6 +43,8 @@ export interface Database {
           full_name: string | null;
           role_id: string | null;
           is_active: boolean;
+          deleted_at: string | null; // Soft delete timestamp
+          deleted_by: string | null; // User who soft-deleted this user
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -53,6 +55,8 @@ export interface Database {
           full_name?: string | null;
           role_id?: string | null;
           is_active?: boolean;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -63,6 +67,8 @@ export interface Database {
           full_name?: string | null;
           role_id?: string | null;
           is_active?: boolean;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -130,7 +136,7 @@ export interface Database {
           title: string;
           description: string | null;
           status: string;
-          assigned_to: string | null;
+          assigned_to: string | null; // DEPRECATED: Use task_assignees table
           due_date: string | null;
           priority: string;
           review_status: string | null;
@@ -141,6 +147,8 @@ export interface Database {
           closed_reason: string | null; // 'manual' or 'project_closed'
           closed_at: string | null;
           status_before_closure: string | null; // Status before closure, used for reopening
+          deleted_at: string | null; // Soft delete timestamp
+          deleted_by: string | null; // User who soft-deleted the task
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -183,9 +191,72 @@ export interface Database {
           closed_reason?: string | null;
           closed_at?: string | null;
           status_before_closure?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
+        };
+      };
+      task_edit_requests: {
+        Row: {
+          id: string;
+          task_id: string;
+          requested_by: string;
+          proposed_changes: Record<string, unknown>; // JSONB
+          status: 'pending' | 'approved' | 'rejected';
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          comments: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          requested_by: string;
+          proposed_changes: Record<string, unknown>;
+          status?: 'pending' | 'approved' | 'rejected';
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          comments?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          requested_by?: string;
+          proposed_changes?: Record<string, unknown>;
+          status?: 'pending' | 'approved' | 'rejected';
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          comments?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      task_assignees: {
+        Row: {
+          id: string;
+          task_id: string;
+          user_id: string;
+          assigned_at: string;
+          assigned_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          user_id: string;
+          assigned_at?: string;
+          assigned_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          user_id?: string;
+          assigned_at?: string;
+          assigned_by?: string | null;
         };
       };
       notifications: {
@@ -482,6 +553,64 @@ export interface Database {
           total_count: number;
         }>;
       };
+      apply_task_edit_request: {
+        Args: {
+          request_id: string;
+          reviewed_by: string;
+        };
+        Returns: {
+          success: boolean;
+          message?: string;
+          error?: string;
+        };
+      };
+      soft_delete_task: {
+        Args: {
+          task_id: string;
+          deleted_by: string;
+        };
+        Returns: {
+          success: boolean;
+          message?: string;
+          error?: string;
+        };
+      };
+      restore_task: {
+        Args: {
+          task_id: string;
+          restored_by: string;
+        };
+        Returns: {
+          success: boolean;
+          message?: string;
+          error?: string;
+        };
+      };
+      soft_delete_user: {
+        Args: {
+          user_id: string;
+          deleted_by: string;
+          reassign_tasks_to?: string | null;
+        };
+        Returns: {
+          success: boolean;
+          message?: string;
+          error?: string;
+          tasks_reassigned?: number;
+          tasks_orphaned?: number;
+        };
+      };
+      restore_user: {
+        Args: {
+          user_id: string;
+          restored_by: string;
+        };
+        Returns: {
+          success: boolean;
+          message?: string;
+          error?: string;
+        };
+      };
     };
   };
 }
@@ -496,12 +625,28 @@ export type TaskComment = Database['public']['Tables']['task_comments']['Row'];
 export type TaskNote = Database['public']['Tables']['task_notes']['Row'];
 export type TaskFile = Database['public']['Tables']['task_files']['Row'];
 export type TaskProgressLog = Database['public']['Tables']['task_progress_log']['Row'];
+export type TaskEditRequest = Database['public']['Tables']['task_edit_requests']['Row'];
+export type TaskAssignee = Database['public']['Tables']['task_assignees']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
 
 // Extended types with relations
 export type UserWithRole = User & {
   roles?: Role;
 };
+
+// Extended task type with assignees
+export type TaskWithAssignees = Task & {
+  assignees?: (TaskAssignee & { user?: UserWithRole })[];
+};
+
+// Proposed changes type for edit requests
+export interface ProposedTaskChanges {
+  title?: string;
+  description?: string | null;
+  due_date?: string | null;
+  priority?: string;
+  assignees?: string[]; // Array of user IDs
+}
 
 // Constants for type safety (using const objects instead of enums for erasableSyntaxOnly compatibility)
 export const TaskStatus = {

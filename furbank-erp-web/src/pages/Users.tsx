@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Edit, Key, X, Save } from 'lucide-react';
 import { Skeleton, SkeletonUserCard } from '@/components/skeletons';
+import { DeleteUserButton } from '@/components/users/DeleteUserButton';
 
 // Memoized user list item component
 const UserListItem = memo(({ 
@@ -32,6 +33,7 @@ const UserListItem = memo(({
   onRoleChange,
   onStatusToggle,
   onResetPassword,
+  onUserDeleted,
   setEditFormData,
 }: {
   user: UserWithRole;
@@ -44,6 +46,7 @@ const UserListItem = memo(({
   onRoleChange: (userId: string, newRole: UserRole) => void;
   onStatusToggle: (userId: string, currentStatus: boolean) => void;
   onResetPassword: (userId: string) => void;
+  onUserDeleted: () => void;
   setEditFormData: React.Dispatch<React.SetStateAction<{ email: string; fullName: string; role: UserRole } | null>>;
 }) => {
   const role = (user as any).roles as { name: string; description: string } | null;
@@ -176,6 +179,10 @@ const UserListItem = memo(({
               >
                 {user.is_active ? 'Deactivate' : 'Activate'}
               </Button>
+              <DeleteUserButton
+                user={user}
+                onDeleted={onUserDeleted}
+              />
             </div>
           </div>
         </>
@@ -689,6 +696,7 @@ export function Users() {
                       onRoleChange={handleRoleChange}
                       onStatusToggle={handleStatusToggle}
                       onResetPassword={handleResetPassword}
+                      onUserDeleted={fetchUsers}
                       setEditFormData={setEditFormData}
                     />
                   ))}

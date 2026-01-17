@@ -36,8 +36,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If user doesn't exist in public.users, try to create it
       if (userError && (userError as any).code === 'PGRST116') {
         // User record doesn't exist - try to sync it
-        console.warn('User record not found in public.users, attempting to sync...');
-        
         // Try to call the self-registration function first (simpler, user-specific)
         const { error: createError } = await supabase.rpc('create_my_user_record');
         
@@ -75,8 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error: syncError } = await supabase.rpc('sync_missing_user_records');
         
         if (syncError) {
-          // If both functions fail, log but don't crash
-          console.error('Failed to create/sync user record:', syncError);
+          // If both functions fail, don't crash
           return;
         }
 
@@ -88,7 +85,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (retryError || !retryUserData) {
-          console.error('Failed to fetch user after sync:', retryError);
           return;
         }
 
@@ -132,21 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } as UserWithRole;
       
       setAppUser(userWithRole);
-    } catch (error) {
-      console.error('Error fetching app user:', error);
+    } catch {
       // Don't completely fail - user might still be authenticated in Supabase Auth
       // Just set appUser to null so the app can continue (though with limited functionality)
       setAppUser(null);
-      
-      // In development, log more details
-      if (import.meta.env.MODE === 'development') {
-        const err = error as any;
-        if (err?.code === 'PGRST116' || err?.message?.includes('No rows')) {
-          console.warn('User record not found in users table. User may need to be created by an admin.');
-        } else if (err?.status === 403 || err?.code === '42501') {
-          console.warn('RLS policy blocking user access. Check RLS policies on users table.');
-        }
-      }
     }
   };
 
@@ -199,7 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        console.error('Error signing out:', error);
         // Still clear local state even if there's an error
       }
       
@@ -207,8 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { clearServiceWorkerCaches } = await import('@/lib/pwa/serviceWorkerRegistration');
         await clearServiceWorkerCaches();
-      } catch (swError) {
-        console.warn('Failed to clear service worker caches:', swError);
+      } catch {
         // Continue with logout even if cache clearing fails
       }
       
@@ -216,8 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { clearQueue } = await import('@/lib/pwa/offlineQueue');
         await clearQueue();
-      } catch (queueError) {
-        console.warn('Failed to clear offline queue:', queueError);
+      } catch {
         // Continue with logout even if queue clearing fails
       }
       
@@ -226,8 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       // Force a page reload to ensure clean state
       window.location.href = '/login';
-    } catch (error) {
-      console.error('Error signing out:', error);
+    } catch {
       // Clear local state even on error
       setAppUser(null);
       setUser(null);
@@ -240,19 +221,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const roleName = appUser?.roles?.name ?? null;
   const role = roleName as UserRole | null;
   const permissions = getPermissions(roleName);
-  
-  // Debug logging - only log when appUser changes
-  useEffect(() => {
-    if (import.meta.env.MODE === 'development' && appUser) {
-      console.log('AuthContext - Role calculation:', {
-        roleName,
-        role,
-        permissions,
-        appUserRoleId: appUser.role_id,
-        appUserRoles: appUser.roles,
-      });
-    }
-  }, [appUser, roleName, role]);
 
   const value: AuthContextType = useMemo(() => ({
     user,

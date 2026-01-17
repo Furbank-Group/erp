@@ -14,7 +14,8 @@ export interface TaskFilters {
 
 export interface TaskWithRelations extends Task {
   projects?: Project | null;
-  assigned_user?: UserWithRole | null;
+  assigned_user?: UserWithRole | null; // Legacy single assignee (deprecated)
+  assignees?: (UserWithRole & { assigned_at: string })[];
 }
 
 /**
@@ -85,6 +86,8 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         query = query.eq('project_id', filters.projectId);
       }
 
+      // Note: assignedTo filter should use task_assignees table, but for backward compatibility
+      // we'll filter by assigned_to as well. In the future, this should be updated to use task_assignees.
       if (filters?.assignedTo) {
         query = query.eq('assigned_to', filters.assignedTo);
       }
@@ -95,8 +98,9 @@ export function useRealtimeTasks(filters?: TaskFilters) {
 
       if (fetchError) throw fetchError;
 
-      // Fetch assigned users efficiently in a single query
+      // Fetch assigned users and assignees efficiently
       if (data && data.length > 0) {
+        const taskIds = data.map((t: any) => t.id);
         const userIds = [...new Set(data.map((t: any) => t.assigned_to).filter(Boolean))];
 
         // Fetch all users with roles in a single query
@@ -104,7 +108,7 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         if (userIds.length > 0) {
           const { data: usersData } = await supabase
             .from('users')
-            .select('*, roles(*)')
+            .select('*, roles:roles!users_role_id_fkey(*)')
             .in('id', userIds);
 
           if (usersData) {
@@ -120,10 +124,51 @@ export function useRealtimeTasks(filters?: TaskFilters) {
           }
         }
 
+        // Fetch task assignees (multi-assignee support)
+        const { data: assigneesData } = await supabase
+          .from('task_assignees')
+          .select('task_id, user_id, assigned_at')
+          .in('task_id', taskIds);
+
+        // Build assignees map by task_id
+        const assigneesMap = new Map<string, (UserWithRole & { assigned_at: string })[]>();
+        if (assigneesData && assigneesData.length > 0) {
+          const assigneeUserIds = [
+            ...new Set(assigneesData.map((assignee: any) => assignee.user_id).filter(Boolean)),
+          ];
+          const { data: assigneeUsersData } = assigneeUserIds.length > 0
+            ? await supabase.from('users').select('*, roles:roles!users_role_id_fkey(*)').in('id', assigneeUserIds)
+            : { data: [] };
+          const assigneeUsersMap = new Map(
+            (assigneeUsersData ?? []).map((u: any) => {
+              const user = {
+                ...u,
+                roles: Array.isArray(u.roles) && u.roles.length > 0 ? u.roles[0] : (u.roles ?? null),
+              };
+              return [u.id, user];
+            })
+          );
+
+          assigneesData.forEach((assignee: any) => {
+            const taskId = assignee.task_id;
+            if (!assigneesMap.has(taskId)) {
+              assigneesMap.set(taskId, []);
+            }
+            const user = assigneeUsersMap.get(assignee.user_id) ?? null;
+            if (user) {
+              assigneesMap.get(taskId)!.push({
+                ...user,
+                assigned_at: assignee.assigned_at,
+              });
+            }
+          });
+        }
+
         const tasksWithRelations = data.map((task: any) => ({
           ...task,
           projects: task.projects ?? null,
-          assigned_user: task.assigned_to ? usersMap.get(task.assigned_to) ?? null : null,
+          assigned_user: task.assigned_to ? usersMap.get(task.assigned_to) ?? null : null, // Legacy
+          assignees: assigneesMap.get(task.id) ?? [],
         }));
 
         setTasks(tasksWithRelations as TaskWithRelations[]);

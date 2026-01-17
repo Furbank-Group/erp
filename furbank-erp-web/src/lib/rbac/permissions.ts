@@ -27,7 +27,7 @@ export interface Permissions {
   canCreateTasks: boolean;
   canEditTasks: boolean;
   canAssignTasks: boolean;
-  canDeleteTasks: boolean;
+  canDeleteTasks: boolean; // Super Admin can soft delete tasks
   
   // Task Interactions
   canAddComments: boolean;
@@ -41,6 +41,15 @@ export interface Permissions {
   // Task Review
   canRequestReview: boolean;
   canReviewTasks: boolean;
+  
+  // Task Edit Requests
+  canRequestTaskEdit: boolean; // Admin can request edits
+  canApproveTaskEdits: boolean; // Super Admin can approve/reject
+  
+  // Deletion
+  canDeleteUsers: boolean; // Super Admin can soft delete users
+  canViewDeletedTasks: boolean; // Super Admin can view deleted tasks
+  canViewDeletedUsers: boolean; // Super Admin can view deleted users
   
   // Users
   canViewAllUsers: boolean;
@@ -64,7 +73,7 @@ export interface Permissions {
 export function getPermissions(roleName: string | null): Permissions {
   switch (roleName) {
     case UserRole.SUPER_ADMIN:
-      // Super Admin: Full system access, but tasks are still immutable
+      // Super Admin: Full system access, can approve edits and delete
       return {
         canViewAllProjects: true,
         canCreateProjects: true,
@@ -72,15 +81,20 @@ export function getPermissions(roleName: string | null): Permissions {
         canDeleteProjects: true,
         canViewAllTasks: true,
         canCreateTasks: true,
-        canEditTasks: false, // Tasks are immutable after creation (even for Super Admin)
+        canEditTasks: true, // Super Admin can edit directly (still audited via edit requests)
         canAssignTasks: true, // Can assign tasks to anyone including themselves
-        canDeleteTasks: false, // Tasks cannot be deleted
+        canDeleteTasks: true, // Super Admin can soft delete tasks
         canAddComments: true,
         canDeleteComments: true,
         canAddNotes: true,
         canUploadFiles: true,
         canRequestReview: true,
         canReviewTasks: true, // Only Super Admin can review
+        canRequestTaskEdit: true, // Can request edits
+        canApproveTaskEdits: true, // Can approve/reject edit requests
+        canDeleteUsers: true, // Super Admin can soft delete users
+        canViewDeletedTasks: true, // Can view deleted tasks for restore
+        canViewDeletedUsers: true, // Can view deleted users for restore
         canViewAllUsers: true,
         canManageUsers: false, // System-level permissions not changeable
         canViewReports: true,
@@ -96,15 +110,20 @@ export function getPermissions(roleName: string | null): Permissions {
         canDeleteProjects: false, // Only super_admin can delete
         canViewAllTasks: true,
         canCreateTasks: true,
-        canEditTasks: false, // Tasks are immutable after creation
+        canEditTasks: false, // Tasks are immutable after creation (use edit requests)
         canAssignTasks: true, // Core responsibility: assigning tasks to users (including themselves)
-        canDeleteTasks: false, // Tasks cannot be deleted
+        canDeleteTasks: false, // Only Super Admin can delete
         canAddComments: true,
         canDeleteComments: true,
         canAddNotes: true,
         canUploadFiles: true,
         canRequestReview: true,
         canReviewTasks: false, // Only Super Admin can review
+        canRequestTaskEdit: true, // Admin can request task edits
+        canApproveTaskEdits: false, // Only Super Admin can approve
+        canDeleteUsers: false, // Only Super Admin can delete
+        canViewDeletedTasks: false, // Only Super Admin can view deleted
+        canViewDeletedUsers: false, // Only Super Admin can view deleted
         canViewAllUsers: true,
         canManageUsers: false,
         canViewReports: false, // Future feature
@@ -124,13 +143,18 @@ export function getPermissions(roleName: string | null): Permissions {
         canCreateTasks: false,
         canEditTasks: false, // Tasks are immutable after creation
         canAssignTasks: false, // Staff cannot assign tasks - this is enforced strictly
-        canDeleteTasks: false, // Tasks cannot be deleted
+        canDeleteTasks: false, // Only Super Admin can delete
         canAddComments: true, // But only on assigned tasks (enforced at API/DB level)
         canDeleteComments: false, // Only admins can delete comments
         canAddNotes: true, // But only on assigned tasks (enforced at API/DB level)
         canUploadFiles: true, // But only on assigned tasks (enforced at API/DB level)
         canRequestReview: true, // But only on assigned tasks (enforced at API/DB level)
         canReviewTasks: false, // Only Super Admin can review
+        canRequestTaskEdit: false, // Only Admin and Super Admin can request edits
+        canApproveTaskEdits: false, // Only Super Admin can approve
+        canDeleteUsers: false, // Only Super Admin can delete
+        canViewDeletedTasks: false, // Only Super Admin can view deleted
+        canViewDeletedUsers: false, // Only Super Admin can view deleted
         canViewAllUsers: false,
         canManageUsers: false,
         canViewReports: false,
