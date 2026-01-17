@@ -183,7 +183,9 @@ serve(async (req) => {
       console.error('Failed to create user record:', userRecordError);
       
       // Check if it's a duplicate (trigger might have created it)
-      if ((userRecordError as any).code !== '23505') {
+      // PostgreSQL unique violation error code is '23505'
+      const errorCode = 'code' in userRecordError ? userRecordError.code : null;
+      if (errorCode !== '23505') {
         return new Response(
           JSON.stringify({ error: `Failed to create user record: ${userRecordError.message}` }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

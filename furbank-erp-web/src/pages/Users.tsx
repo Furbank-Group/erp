@@ -131,12 +131,12 @@ export function Users() {
   };
 
   const handleEditUser = (user: UserWithRole) => {
-    const role = (user as any).roles as { name: string } | null;
+    const roleName = user.roles?.name;
     setEditingUserId(user.id);
     setEditFormData({
       email: user.email,
       fullName: user.full_name ?? '',
-      role: (role?.name as UserRole) ?? 'user',
+      role: (roleName as UserRole) ?? 'user',
     });
     setError(null);
   };
@@ -444,7 +444,7 @@ export function Users() {
           ) : (
             <div className="space-y-4">
               {users.map((user) => {
-                const role = (user as any).roles as { name: string; description: string } | null;
+                const role = user.roles;
                 const isEditing = editingUserId === user.id;
 
                 return (

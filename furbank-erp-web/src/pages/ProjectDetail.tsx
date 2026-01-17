@@ -62,22 +62,28 @@ export function ProjectDetail() {
   const fetchMembers = async () => {
     if (!id) return;
     try {
-      const { data, error } = await supabase
+      // Fetch project members first (without join since user_id references auth.users, not public.users)
+      const { data: membersData, error: membersError } = await supabase
         .from('project_members')
-        .select('*, users(*)')
+        .select('*')
         .eq('project_id', id);
 
-      if (error) throw error;
+      if (membersError) throw membersError;
 
-      if (data && data.length > 0) {
-        const userIds = [...new Set(data.map((m: any) => m.user_id).filter(Boolean))];
-        const { data: usersData } = userIds.length > 0
+      if (membersData && membersData.length > 0) {
+        // Extract user IDs and fetch users separately from public.users
+        const userIds = [...new Set(membersData.map((m: any) => m.user_id).filter(Boolean))];
+        
+        const { data: usersData, error: usersError } = userIds.length > 0
           ? await supabase.from('users').select('*').in('id', userIds)
-          : { data: [] };
+          : { data: [], error: null };
+
+        if (usersError) throw usersError;
 
         const usersMap = new Map((usersData as any)?.map((u: any) => [u.id, u]) ?? []);
 
-        const membersWithUsers = data.map((member: any) => {
+        // Combine members with user data
+        const membersWithUsers = membersData.map((member: any) => {
           const user = usersMap.get(member.user_id);
           return {
             ...member,
