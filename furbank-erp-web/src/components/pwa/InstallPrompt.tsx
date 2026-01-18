@@ -69,7 +69,7 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-40 animate-in slide-in-from-bottom-5 duration-300">
+    <div className="fixed bottom-20 left-4 right-4 lg:bottom-4 lg:left-auto lg:right-4 lg:max-w-sm z-[60] animate-in slide-in-from-bottom-5 duration-300">
       <Card className="shadow-lg border-primary/20 bg-background/95 backdrop-blur-sm">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
