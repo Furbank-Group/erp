@@ -91,7 +91,7 @@ export function NotificationList({ onClose }: NotificationListProps) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="max-h-[500px] overflow-y-auto">
+        <div className="max-h-[calc(100vh-8rem)] sm:max-h-[500px] overflow-y-auto">
           {loading && notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Loading...</div>
           ) : notifications.length === 0 ? (

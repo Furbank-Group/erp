@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, Link } from 'react-router-dom';
+import { usePage } from '@/contexts/PageContext';
+import { Plus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import type { Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
@@ -41,19 +43,19 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
       className="block"
     >
       <Card
-        className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group ${
+        className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group w-full ${
           taskIsClosed || isArchived
             ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
-            : 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
+            : 'hover:shadow-lg sm:hover:scale-[1.02] cursor-pointer'
         }`}
       >
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-lg group-hover:text-primary transition-colors">
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base sm:text-lg group-hover:text-primary transition-colors break-words">
                 {task.title}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words mt-1">
                 {(task.projects as Project)?.name ?? 'Standalone Task'}
                 {taskIsClosed && closedByProject && (
                   <span className="text-xs italic text-muted-foreground ml-2">
@@ -62,34 +64,34 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
                 )}
               </CardDescription>
             </div>
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 ${statusDisplay.bgColor} ${statusDisplay.color}`}>
               <StatusIcon className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium">{statusDisplay.label}</span>
+              <span className="text-xs font-medium hidden sm:inline">{statusDisplay.label}</span>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+        <CardContent className="p-4 sm:p-6 pt-0">
+          <p className="text-sm text-muted-foreground line-clamp-2 mb-4 break-words">
             {task.description ?? 'No description'}
           </p>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               {task.assigned_to && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground break-words">
                   Assigned to: {(task.assigned_user as UserWithRole)?.full_name ?? (task.assigned_user as UserWithRole)?.email ?? 'Unknown'}
                 </span>
               )}
               {dueDateDisplay && (() => {
                 const DueDateIcon = dueDateDisplay.icon;
                 return (
-                  <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
+                  <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md w-fit ${dueDateDisplay.bgColor} ${dueDateDisplay.color}`}>
                     <DueDateIcon className="h-3.5 w-3.5" />
                     <span className="text-xs font-medium">{dueDateDisplay.label}</span>
                   </div>
                 );
               })()}
             </div>
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md w-fit ${priorityDisplay.bgColor} ${priorityDisplay.color}`}>
               <PriorityIcon className="h-3.5 w-3.5" />
               <span className="text-xs font-medium">{priorityDisplay.label}</span>
             </div>
@@ -104,6 +106,7 @@ TaskListItem.displayName = 'TaskListItem';
 
 export function Tasks() {
   const { permissions } = useAuth();
+  const { setActionButton } = usePage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -150,6 +153,40 @@ export function Tasks() {
 
   // Use real-time tasks hook
   const { tasks, loading } = useRealtimeTasks(taskFilters);
+
+  // Set action button in top bar
+  useEffect(() => {
+    if (permissions.canCreateTasks) {
+      setActionButton(
+        <>
+          {/* Mobile: Icon button */}
+          <Button 
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            size="icon"
+            variant="ghost"
+            className="h-10 w-10 lg:hidden"
+          >
+            {showCreateForm ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Plus className="h-5 w-5" />
+            )}
+          </Button>
+          {/* Desktop: Full button with text */}
+          <Button 
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            className="hidden lg:flex min-h-[44px]"
+          >
+            {showCreateForm ? 'Cancel' : 'New Task'}
+          </Button>
+        </>
+      );
+    } else {
+      setActionButton(null);
+    }
+    
+    return () => setActionButton(null);
+  }, [permissions.canCreateTasks, showCreateForm, setActionButton]);
 
   // Initialize tab from URL params
   useEffect(() => {
@@ -303,18 +340,29 @@ export function Tasks() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Tasks</h1>
-        {permissions.canCreateTasks && (
-          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
-            {showCreateForm ? 'Cancel' : 'New Task'}
-          </Button>
-        )}
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+
+      {/* Mobile: Dropdown filter */}
+      <div className="lg:hidden w-full">
+        <Select
+          value={activeTab}
+          onChange={(e) => {
+            const tab = e.target.value as typeof activeTab;
+            setActiveTab(tab);
+            setSearchParams({});
+          }}
+          className="w-full min-h-[44px]"
+        >
+          <option value="all">All Tasks</option>
+          <option value="todo">To Do</option>
+          <option value="work-in-progress">Work-In-Progress</option>
+          <option value="done">Done (Pending Review)</option>
+          <option value="closed">Closed (Complete)</option>
+        </Select>
       </div>
 
-      {/* Lifecycle Tabs for filtering */}
-      <div className="flex gap-2 border-b">
+      {/* Desktop: Lifecycle Tabs for filtering */}
+      <div className="hidden lg:flex gap-2 border-b">
         <button
           onClick={() => {
             setActiveTab('all');
@@ -409,13 +457,14 @@ export function Tasks() {
                   rows={4}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="project_id">Project (Optional)</Label>
                   <Select
                     id="project_id"
                     value={formData.project_id}
                     onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                    className="w-full min-h-[44px]"
                   >
                     <option value="">Standalone Task (No Project)</option>
                     {projects.map((project) => (
@@ -424,7 +473,7 @@ export function Tasks() {
                       </option>
                     ))}
                   </Select>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground break-words">
                     Leave as "Standalone Task" for operational tasks not tied to a project
                   </p>
                 </div>
@@ -437,7 +486,7 @@ export function Tasks() {
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="due_date">Due Date</Label>
                   <Input
@@ -475,7 +524,7 @@ export function Tasks() {
         </Card>
       ) : (
         <>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4 w-full">
             {tasks
               .slice((currentPage - 1) * pageSize, currentPage * pageSize)
               .map((task) => (
@@ -483,16 +532,17 @@ export function Tasks() {
               ))}
           </div>
           {tasks.length > pageSize && (
-            <div className="flex items-center justify-between mt-6 pt-4 border-t">
-              <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-6 pt-4 border-t">
+              <div className="text-sm text-muted-foreground text-center sm:text-left">
                 Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, tasks.length)} of {tasks.length} tasks
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 justify-center sm:justify-end">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
+                  className="min-h-[44px] min-w-[80px]"
                 >
                   Previous
                 </Button>
@@ -504,6 +554,7 @@ export function Tasks() {
                   size="sm"
                   onClick={() => setCurrentPage((p) => Math.min(Math.ceil(tasks.length / pageSize), p + 1))}
                   disabled={currentPage >= Math.ceil(tasks.length / pageSize)}
+                  className="min-h-[44px] min-w-[80px]"
                 >
                   Next
                 </Button>

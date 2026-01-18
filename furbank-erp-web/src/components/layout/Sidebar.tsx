@@ -72,8 +72,8 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 md:border-r md:bg-card md:sticky md:top-0 md:h-screen md:overflow-y-auto">
-      <div className="flex flex-col h-full">
+    <aside className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:w-64 lg:border-r lg:bg-card lg:h-screen lg:overflow-y-auto lg:z-40 shrink-0">
+      <div className="flex flex-col h-full w-full">
         {/* Logo/Brand */}
         <div className="flex items-center gap-2 px-6 py-4 border-b">
           <img src={logo} alt="Furbank ERP" className="h-8 w-8" />

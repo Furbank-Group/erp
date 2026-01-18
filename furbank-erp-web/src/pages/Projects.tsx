@@ -1,5 +1,7 @@
-import { useState, memo } from 'react';
+import { useState, memo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePage } from '@/contexts/PageContext';
+import { Plus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
 import { Button } from '@/components/ui/button';
@@ -52,11 +54,46 @@ ProjectListItem.displayName = 'ProjectListItem';
 
 export function Projects() {
   const { permissions } = useAuth();
+  const { setActionButton } = usePage();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
 
   // Use real-time projects hook
   const { projects, loading } = useRealtimeProjects();
+
+  // Set action button in top bar
+  useEffect(() => {
+    if (permissions.canCreateProjects) {
+      setActionButton(
+        <>
+          {/* Mobile: Icon button */}
+          <Button 
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            size="icon"
+            variant="ghost"
+            className="h-10 w-10 lg:hidden"
+          >
+            {showCreateForm ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Plus className="h-5 w-5" />
+            )}
+          </Button>
+          {/* Desktop: Full button with text */}
+          <Button 
+            onClick={() => setShowCreateForm((prev) => !prev)}
+            className="hidden lg:flex min-h-[44px]"
+          >
+            {showCreateForm ? 'Cancel' : 'New Project'}
+          </Button>
+        </>
+      );
+    } else {
+      setActionButton(null);
+    }
+    
+    return () => setActionButton(null);
+  }, [permissions.canCreateProjects, showCreateForm, setActionButton]);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,14 +143,6 @@ export function Projects() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Projects</h1>
-        {permissions.canCreateProjects && (
-          <Button onClick={() => setShowCreateForm(!showCreateForm)}>
-            {showCreateForm ? 'Cancel' : 'New Project'}
-          </Button>
-        )}
-      </div>
 
       {showCreateForm && permissions.canCreateProjects && (
         <Card>

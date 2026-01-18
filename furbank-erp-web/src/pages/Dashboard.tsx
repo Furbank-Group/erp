@@ -7,6 +7,7 @@ import {
   getStaffDashboardStats,
   type DashboardStats,
 } from '@/lib/services/dashboardService';
+import { getAllUsersPerformance, type UserPerformanceRanking } from '@/lib/services/userPerformanceService';
 import { useRealtimeTasks } from '@/hooks/useRealtimeTasks';
 import { useRealtimeProjects } from '@/hooks/useRealtimeProjects';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,8 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [teamRankings, setTeamRankings] = useState<UserPerformanceRanking[]>([]);
+  const [rankingsLoading, setRankingsLoading] = useState(false);
 
   // Subscribe to real-time task and project changes
   const { tasks: allTasks } = useRealtimeTasks();
@@ -143,6 +146,29 @@ export function Dashboard() {
     };
   }, [allTasks.length, allProjects.length, recalculateMetrics, stats, loading]);
 
+  // Fetch team rankings for super admin
+  useEffect(() => {
+    const fetchTeamRankings = async () => {
+      if (role !== UserRole.SUPER_ADMIN || !permissions.canViewAllUsers) {
+        return;
+      }
+
+      try {
+        setRankingsLoading(true);
+        const result = await getAllUsersPerformance();
+        if (result.data) {
+          setTeamRankings(result.data);
+        }
+      } catch (err) {
+        console.error('Error fetching team rankings:', err);
+      } finally {
+        setRankingsLoading(false);
+      }
+    };
+
+    fetchTeamRankings();
+  }, [role, permissions.canViewAllUsers]);
+
   if (loading) {
     return (
       <div className="space-y-4 md:space-y-6 w-full">
@@ -187,15 +213,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6 w-full">
-      <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Dashboard</h1>
-        <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
-          {role === UserRole.SUPER_ADMIN && 'Global overview across all projects'}
-          {role === UserRole.ADMIN && 'Operational overview of your projects'}
-          {role === UserRole.USER && 'Your personal productivity overview'}
-        </p>
-      </div>
+    <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden">
 
       {/* Section 1: Tasks (Most Urgent) */}
       <section>
@@ -206,8 +224,8 @@ export function Dashboard() {
           </Link>
         </div>
 
-        {/* Task Metrics Summary - All clickable */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-3 md:mb-4">
+        {/* Task Metrics Summary - All clickable - Single column on mobile, full width */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3 mb-3 md:mb-4 w-full">
           <Link to="/tasks" className="block">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
@@ -245,7 +263,7 @@ export function Dashboard() {
             </Card>
           </Link>
           <Link to="/tasks?task_status=Closed" className="block">
-            <Card className="col-span-2 sm:col-span-1 hover:shadow-md transition-shadow cursor-pointer">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="pt-3 pb-3 sm:pt-4 sm:pb-4">
                 <div className="text-xs text-muted-foreground mb-1">Closed (Complete)</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold">{taskMetrics.closed}</div>
@@ -260,9 +278,9 @@ export function Dashboard() {
             <CardHeader className="pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
               <CardTitle className="text-sm sm:text-base md:text-lg">Lifecycle Status Breakdown</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-4 md:pb-6 w-full overflow-x-hidden">
               {/* Vertical layout for small screens, horizontal for large screens */}
-              <div className="space-y-2 lg:space-y-0 lg:flex lg:gap-3">
+              <div className="space-y-3 lg:space-y-0 lg:flex lg:gap-3 w-full">
                 {[...stats.taskUrgencySummary].sort((a, b) => {
                   // Custom sort order: ToDo, Work-In-Progress, Done, Closed (canonical lifecycle)
                   const order: Record<string, number> = {
@@ -520,8 +538,8 @@ export function Dashboard() {
               <CardTitle className="text-sm sm:text-base md:text-lg">Project Health</CardTitle>
               <CardDescription className="text-xs md:text-sm">Task distribution and completion status</CardDescription>
             </CardHeader>
-            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
-              <div className="space-y-2 sm:space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3">
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-4 md:pb-6 w-full overflow-x-hidden">
+              <div className="space-y-3 sm:space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-3 w-full">
                 {stats.projectHealth
                   .filter(p => p.project_status !== 'closed')
                   .map((project) => {
@@ -679,9 +697,52 @@ export function Dashboard() {
               <CardTitle className="text-sm sm:text-base md:text-lg">Workload Summary</CardTitle>
               <CardDescription className="text-xs md:text-sm">Tasks assigned and overdue by user</CardDescription>
             </CardHeader>
-            <CardContent className="px-4 md:px-6 pb-4 md:pb-6">
-              <div className="overflow-x-auto -mx-4 md:-mx-6 px-4 md:px-6">
-                <table className="w-full text-xs md:text-sm min-w-[500px] sm:min-w-[600px] md:min-w-0">
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-4 md:pb-6 w-full overflow-x-hidden">
+              {/* Mobile: Card-based layout, Desktop: Table */}
+              <div className="lg:hidden space-y-3">
+                {stats.userWorkload.map((user) => {
+                  const hasOverdue = user.overdue_tasks > 0;
+                  return (
+                    <div
+                      key={user.user_id}
+                      onClick={() => navigate(`/users/${user.user_id}/performance`)}
+                      className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                        hasOverdue 
+                          ? 'bg-red-50/30 dark:bg-red-950/20 border-red-200 dark:border-red-800' 
+                          : 'bg-card border-border hover:bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{user.user_name}</h3>
+                          <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                            {user.user_role.replace('_', ' ')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Assigned</span>
+                          <span className="font-medium">{user.assigned_tasks}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Overdue</span>
+                          <span className={`font-semibold ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
+                            {user.overdue_tasks}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Awaiting Review</span>
+                          <span className="font-medium">{user.tasks_waiting_review}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Desktop: Table layout */}
+              <div className="hidden lg:block overflow-x-auto -mx-4 md:-mx-6 px-4 md:px-6">
+                <table className="w-full text-xs md:text-sm min-w-0">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Name</th>
@@ -725,6 +786,76 @@ export function Dashboard() {
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Section 4: Team Rankings - Only for Super Admin */}
+      {role === UserRole.SUPER_ADMIN && (
+        <section>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 md:mb-4">
+            <div>
+              <h2 className="text-base sm:text-lg md:text-xl font-semibold">Team Rankings</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                Productivity score comparison across all users
+              </p>
+            </div>
+            {permissions.canViewAllUsers && (
+              <Link to="/users" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
+                View all <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+
+          <Card>
+            <CardContent className="px-3 sm:px-4 md:px-6 pb-4 md:pb-6 pt-4 md:pt-6 w-full overflow-x-hidden">
+              {rankingsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-20 bg-muted/50 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : teamRankings.length > 0 ? (
+                <div className="space-y-3">
+                  {teamRankings.map((rankingUser, index) => (
+                    <div
+                      key={rankingUser.user_id}
+                      onClick={() => navigate(`/users/${rankingUser.user_id}/performance`)}
+                      className="p-4 rounded-lg border cursor-pointer transition-colors bg-card border-border hover:bg-accent/50"
+                    >
+                        <div className="flex items-center gap-4">
+                          {/* Rank */}
+                          <div className="text-2xl font-bold text-muted-foreground min-w-[3rem]">
+                            #{index + 1}
+                          </div>
+                          {/* User Info */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm sm:text-base truncate">
+                              {rankingUser.user_full_name ?? 'Unknown User'}
+                            </h3>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {rankingUser.user_email}
+                            </p>
+                          </div>
+                          {/* Performance Metrics */}
+                          <div className="text-right">
+                            <div className="text-xl sm:text-2xl font-bold">
+                              {rankingUser.productivity_score.toFixed(1)}
+                            </div>
+                            <div className="text-xs sm:text-sm text-muted-foreground">
+                              {rankingUser.total_completed}/{rankingUser.total_assigned} tasks
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  No team rankings available
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>

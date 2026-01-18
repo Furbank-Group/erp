@@ -1,5 +1,6 @@
 import { useEffect, useState, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePage } from '@/contexts/PageContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   createUser, 
@@ -18,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Edit, Key, X, Save, Power, TrendingUp } from 'lucide-react';
+import { Edit, Key, X, Save, Power, TrendingUp, Plus } from 'lucide-react';
 import { Skeleton, SkeletonUserCard } from '@/components/skeletons';
 import { DeleteUserButton } from '@/components/users/DeleteUserButton';
 
@@ -329,6 +330,7 @@ UserCard.displayName = 'UserCard';
 
 export function Users() {
   const { permissions } = useAuth();
+  const { setActionButton } = usePage();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -354,6 +356,48 @@ export function Users() {
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [resetPasswordResult, setResetPasswordResult] = useState<ResetPasswordResult | null>(null);
   const [userTaskCounts, setUserTaskCounts] = useState<Map<string, UserTaskCounts>>(new Map());
+
+  // Set action button in top bar
+  useEffect(() => {
+    if (permissions.canViewAllUsers) {
+      setActionButton(
+        <>
+          {/* Mobile: Icon button */}
+          <Button 
+            onClick={() => {
+              setShowCreateForm((prev) => !prev);
+              setCreatedCredentials(null);
+              setError(null);
+            }}
+            size="icon"
+            variant="ghost"
+            className="h-10 w-10 lg:hidden"
+          >
+            {showCreateForm ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Plus className="h-5 w-5" />
+            )}
+          </Button>
+          {/* Desktop: Full button with text */}
+          <Button 
+            onClick={() => {
+              setShowCreateForm((prev) => !prev);
+              setCreatedCredentials(null);
+              setError(null);
+            }}
+            className="hidden lg:flex min-h-[44px]"
+          >
+            {showCreateForm ? 'Cancel' : 'Create User'}
+          </Button>
+        </>
+      );
+    } else {
+      setActionButton(null);
+    }
+    
+    return () => setActionButton(null);
+  }, [permissions.canViewAllUsers, showCreateForm, setActionButton]);
 
   useEffect(() => {
     if (permissions.canViewAllUsers) {
@@ -596,20 +640,7 @@ export function Users() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">User Management</h1>
-        <Button 
-          onClick={() => {
-            setShowCreateForm(!showCreateForm);
-            setCreatedCredentials(null);
-            setError(null);
-          }}
-          className="w-full sm:w-auto"
-        >
-          {showCreateForm ? 'Cancel' : 'Create User'}
-        </Button>
-      </div>
+    <div className="space-y-4 md:space-y-6 w-full max-w-full overflow-x-hidden">
 
       {createdCredentials && (
         <Card className="border-2 border-primary">
@@ -804,72 +835,68 @@ export function Users() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            {users.length} user{users.length !== 1 ? 's' : ''} in the system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {users.length === 0 ? (
+      {users.length === 0 ? (
+        <Card>
+          <CardContent>
             <p className="text-center text-muted-foreground py-8">No users found</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {users
-                  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                  .map((user) => (
-                    <UserCard
-                      key={user.id}
-                      user={user}
-                      editingUserId={editingUserId}
-                      editFormData={editFormData}
-                      resettingPassword={resettingPassword}
-                      taskCounts={userTaskCounts.get(user.id) ?? null}
-                      onEdit={handleEditUser}
-                      onCancelEdit={handleCancelEdit}
-                      onSaveEdit={handleSaveEdit}
-                      onStatusToggle={handleStatusToggle}
-                      onResetPassword={handleResetPassword}
-                      onUserDeleted={fetchUsers}
-                      onViewPerformance={handleViewPerformance}
-                      setEditFormData={setEditFormData}
-                    />
-                  ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+            {users
+              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+              .map((user) => (
+                <UserCard
+                  key={user.id}
+                  user={user}
+                  editingUserId={editingUserId}
+                  editFormData={editFormData}
+                  resettingPassword={resettingPassword}
+                  taskCounts={userTaskCounts.get(user.id) ?? null}
+                  onEdit={handleEditUser}
+                  onCancelEdit={handleCancelEdit}
+                  onSaveEdit={handleSaveEdit}
+                  onStatusToggle={handleStatusToggle}
+                  onResetPassword={handleResetPassword}
+                  onUserDeleted={fetchUsers}
+                  onViewPerformance={handleViewPerformance}
+                  setEditFormData={setEditFormData}
+                />
+              ))}
+          </div>
+          {users.length > pageSize && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-6 pt-4 border-t">
+              <div className="text-sm text-muted-foreground text-center sm:text-left">
+                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, users.length)} of {users.length} users
               </div>
-              {users.length > pageSize && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, users.length)} of {users.length} users
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <span className="flex items-center px-3 text-sm">
-                      Page {currentPage} of {Math.ceil(users.length / pageSize)}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage((p) => Math.min(Math.ceil(users.length / pageSize), p + 1))}
-                      disabled={currentPage >= Math.ceil(users.length / pageSize)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+              <div className="flex gap-2 justify-center sm:justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="min-h-[44px] min-w-[80px]"
+                >
+                  Previous
+                </Button>
+                <span className="flex items-center px-3 text-sm">
+                  Page {currentPage} of {Math.ceil(users.length / pageSize)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(users.length / pageSize), p + 1))}
+                  disabled={currentPage >= Math.ceil(users.length / pageSize)}
+                  className="min-h-[44px] min-w-[80px]"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
     </div>
   );
 }

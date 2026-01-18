@@ -1,6 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePage } from '@/contexts/PageContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, UserWithRole, ProjectStatus } from '@/lib/supabase/types';
 import { ProjectStatus as ProjectStatusEnum } from '@/lib/supabase/types';
@@ -16,13 +17,14 @@ import { getProjectStatusDisplay, getTaskStatusDisplay, getPriorityDisplay } fro
 import { updateProject, closeProject, reopenProject } from '@/lib/services/projectService';
 import { isTaskClosed } from '@/lib/services/projectService';
 import { Link } from 'react-router-dom';
-import { Edit, Save, X } from 'lucide-react';
+import { Edit, Save, X, ArrowLeft } from 'lucide-react';
 import { Skeleton, SkeletonCard, SkeletonTaskCard } from '@/components/skeletons';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { permissions } = useAuth();
+  const { setBackButton, setActionButton } = usePage();
   const [members, setMembers] = useState<UserWithRole[]>([]);
   const [assignedUsers, setAssignedUsers] = useState<UserWithRole[]>([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -61,6 +63,23 @@ export function ProjectDetail() {
       });
     }
   }, [project]);
+
+  // Set back button in top nav
+  useEffect(() => {
+    setBackButton(
+      <Button 
+        variant="ghost" 
+        size="icon"
+        onClick={() => navigate('/projects')}
+        className="h-10 w-10"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </Button>
+    );
+    return () => {
+      setBackButton(null);
+    };
+  }, [navigate, setBackButton]);
 
   const fetchMembers = async () => {
     if (!id) return;
@@ -159,12 +178,12 @@ export function ProjectDetail() {
     }
   };
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     setIsEditing(true);
     setError(null);
-  };
+  }, []);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
     setError(null);
     if (project) {
@@ -174,7 +193,34 @@ export function ProjectDetail() {
         status: project.status as ProjectStatus,
       });
     }
-  };
+  }, [project]);
+
+  // Set edit button in top nav
+  useEffect(() => {
+    if (!permissions.canEditProjects) {
+      setActionButton(null);
+      return;
+    }
+
+    setActionButton(
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={isEditing ? handleCancelEdit : handleEdit}
+        disabled={saving}
+        className="h-10 w-10"
+      >
+        {isEditing ? (
+          <X className="h-5 w-5" />
+        ) : (
+          <Edit className="h-5 w-5" />
+        )}
+      </Button>
+    );
+    return () => {
+      setActionButton(null);
+    };
+  }, [isEditing, saving, permissions.canEditProjects, handleEdit, handleCancelEdit, setActionButton]);
 
   const handleSaveEdit = async () => {
     if (!project || !id) return;
@@ -288,13 +334,10 @@ export function ProjectDetail() {
   const closedTasksCount = tasks.filter(t => isTaskClosed(t)).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="ghost" onClick={() => navigate('/projects')}>
-            ← Back to Projects
-          </Button>
-          <h1 className="text-3xl font-bold mt-2">{project.name}</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-2 break-words">{project.name}</h1>
           <div className="flex items-center gap-2 mt-2">
             <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${statusDisplay.bgColor} ${statusDisplay.color}`}>
               <StatusIcon className="h-4 w-4" />
@@ -307,25 +350,6 @@ export function ProjectDetail() {
             )}
           </div>
         </div>
-        {permissions.canEditProjects && (
-          <Button
-            variant={isEditing ? 'outline' : 'default'}
-            onClick={isEditing ? handleCancelEdit : handleEdit}
-            disabled={saving}
-          >
-            {isEditing ? (
-              <>
-                <X className="h-4 w-4 mr-2" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Project
-              </>
-            )}
-          </Button>
-        )}
       </div>
 
       {isEditing && permissions.canEditProjects && (
@@ -400,8 +424,8 @@ export function ProjectDetail() {
             <CardHeader>
               <CardTitle>Description</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-wrap">
+            <CardContent className="w-full overflow-x-hidden">
+              <p className="text-sm whitespace-pre-wrap break-words">
                 {project.description || 'No description'}
               </p>
             </CardContent>
@@ -412,7 +436,7 @@ export function ProjectDetail() {
               <CardTitle>Tasks ({tasks.length})</CardTitle>
               <CardDescription>Tasks associated with this project</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="w-full overflow-x-hidden">
               {tasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tasks in this project yet.</p>
               ) : (
@@ -439,15 +463,15 @@ export function ProjectDetail() {
                           }`}
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className={`text-sm font-medium truncate ${
+                              <h4 className={`text-sm font-medium break-words ${
                                 taskIsClosed ? 'text-muted-foreground' : 'group-hover:text-primary transition-colors'
                               }`}>
                                 {task.title}
                               </h4>
                               {task.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                                <p className="text-xs text-muted-foreground break-words mt-1">
                                   {task.description}
                                 </p>
                               )}
@@ -457,7 +481,7 @@ export function ProjectDetail() {
                                 </p>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2 shrink-0 md:mt-0 mt-2">
                               <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md ${taskStatusDisplay.bgColor} ${taskStatusDisplay.color}`}>
                                 <TaskStatusIcon className="h-3 w-3" />
                                 <span className="text-xs font-medium">{taskStatusDisplay.label}</span>
@@ -483,7 +507,7 @@ export function ProjectDetail() {
             <CardHeader>
               <CardTitle>Project Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 w-full overflow-x-hidden">
               <div>
                 <p className="text-xs text-muted-foreground">Created</p>
                 <p className="text-sm font-medium">
@@ -504,7 +528,7 @@ export function ProjectDetail() {
                       const role = (user as any).roles as { name: string } | null;
                       return (
                         <div key={user.id} className="text-sm">
-                          <p className="font-medium truncate">
+                          <p className="font-medium break-words">
                             {user.full_name ?? user.email ?? 'Unknown'}
                           </p>
                           {role && (
@@ -526,7 +550,7 @@ export function ProjectDetail() {
               <CardHeader>
                 <CardTitle>Members ({members.length})</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="w-full overflow-x-hidden">
                 <div className="space-y-2">
                   {members.map((member: any) => (
                     <div key={member.id} className="text-sm">

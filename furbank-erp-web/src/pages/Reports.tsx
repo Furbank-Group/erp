@@ -183,30 +183,23 @@ export function Reports() {
   };
 
   return (
-    <div className="space-y-6 w-full">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl font-bold">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          Generate professional PDF reports for analysis, audits, and decision-making
-        </p>
-      </div>
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
 
-      <Card className="border-2 shadow-lg">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-              <FileDown className="h-6 w-6" />
+      <Card className="border-2 shadow-lg w-full">
+        <CardHeader className="pb-4 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+              <FileDown className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
-            <div className="flex-1">
-              <CardTitle className="text-xl">Generate PDF Report</CardTitle>
-              <CardDescription className="mt-1">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-lg sm:text-xl break-words">Generate PDF Report</CardTitle>
+              <CardDescription className="mt-1 text-xs sm:text-sm break-words">
                 Select a report type and configure filters to generate your report
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-0">
           {/* Report Type Selector */}
           <div className="space-y-3">
             <Label htmlFor="reportType" className="text-base font-semibold flex items-center gap-2">
@@ -241,7 +234,7 @@ export function Reports() {
               <Filter className="h-4 w-4" />
               Filters
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
               {/* User filter (for user_performance report) */}
               {reportType === 'user_performance' && (
                 <div className="space-y-2">
@@ -255,6 +248,7 @@ export function Reports() {
                     onChange={(e) => setSelectedUserId(e.target.value)}
                     disabled={loading || loadingData}
                     required
+                    className="w-full min-h-[44px]"
                   >
                     <option value="">Select a user...</option>
                     {users.map((user) => (
@@ -279,6 +273,7 @@ export function Reports() {
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     disabled={loading || loadingData}
                     required
+                    className="w-full min-h-[44px]"
                   >
                     <option value="">Select a project...</option>
                     {projects.map((project) => (
@@ -302,6 +297,7 @@ export function Reports() {
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     disabled={loading || loadingData}
+                    className="w-full min-h-[44px]"
                   >
                     <option value="">All projects</option>
                     {projects.map((project) => (
@@ -325,7 +321,7 @@ export function Reports() {
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
                   disabled={loading}
-                  className="w-full"
+                  className="w-full min-h-[44px]"
                 />
               </div>
 
@@ -341,7 +337,7 @@ export function Reports() {
                   onChange={(e) => setDateTo(e.target.value)}
                   disabled={loading}
                   min={dateFrom || undefined}
-                  className="w-full"
+                  className="w-full min-h-[44px]"
                 />
               </div>
             </div>
@@ -368,7 +364,7 @@ export function Reports() {
             <Button
               onClick={handleGenerateReport}
               disabled={loading || loadingData}
-              className="w-full sm:w-auto sm:min-w-[200px]"
+              className="w-full sm:w-auto sm:min-w-[200px] min-h-[44px]"
               size="lg"
             >
               {loading ? (

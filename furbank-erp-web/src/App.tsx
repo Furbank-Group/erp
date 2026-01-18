@@ -5,6 +5,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SyncProvider } from './contexts/SyncContext';
 import { RealtimeProvider } from './contexts/RealtimeContext';
+import { PageProvider } from './contexts/PageContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -176,7 +177,9 @@ function App() {
             <RealtimeProvider>
               <SyncProvider>
                 <NotificationProvider>
-                  <AppRoutes />
+                  <PageProvider>
+                    <AppRoutes />
+                  </PageProvider>
                 </NotificationProvider>
               </SyncProvider>
             </RealtimeProvider>

@@ -518,8 +518,8 @@ BEGIN
   RETURN QUERY
   SELECT
     u.id AS user_id,
-    u.email AS user_email,
-    u.full_name AS user_full_name,
+    u.email::TEXT AS user_email,
+    u.full_name::TEXT AS user_full_name,
     COALESCE((ps.score->>'productivity_score')::NUMERIC, 0) AS productivity_score,
     tc.total_assigned,
     tc.total_completed,

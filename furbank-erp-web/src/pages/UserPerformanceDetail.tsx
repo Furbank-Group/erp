@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePage } from '@/contexts/PageContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase/client';
 import {
   getUserPerformanceSummary,
@@ -18,20 +20,36 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/skeletons';
 import { ArrowLeft, TrendingUp, TrendingDown, Clock, CheckCircle2, XCircle, AlertCircle, BarChart3 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip as ChartTooltip,
   Legend,
-  ResponsiveContainer,
-} from 'recharts';
+  Filler,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler
+);
 
 export function UserPerformanceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { permissions, appUser } = useAuth();
+  const { setBackButton } = usePage();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [performanceSummary, setPerformanceSummary] = useState<UserPerformanceSummary | null>(null);
@@ -40,6 +58,140 @@ export function UserPerformanceDetail() {
   const [allUsersPerformance, setAllUsersPerformance] = useState<UserPerformanceRanking[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
   const [percentile, setPercentile] = useState<number | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+
+  // Watch for DOM changes to dark class to avoid race conditions
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    
+    return () => observer.disconnect();
+  }, []);
+
+  // Prepare chart data for Chart.js
+  const chartData = useMemo(() => {
+    if (weeklyTrends.length === 0) {
+      return null;
+    }
+
+    return {
+      labels: weeklyTrends.map(trend => trend.week_label),
+      datasets: [
+        {
+          label: 'Tasks Completed',
+          data: weeklyTrends.map(trend => trend.completed_count),
+          borderColor: 'hsl(var(--primary))',
+          backgroundColor: 'hsl(var(--primary) / 0.1)',
+          fill: false,
+          tension: 0.4,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: 'hsl(var(--primary))',
+          pointBorderColor: 'hsl(var(--card))',
+          pointBorderWidth: 2,
+        },
+      ],
+    };
+  }, [weeklyTrends]);
+
+  // Chart.js options with dark mode support
+  const chartOptions = useMemo(() => {
+    // Use an existing element in the DOM to get computed colors (ensures proper theme inheritance)
+    // We'll use the document body or create a hidden element attached to root
+    const tempEl = document.createElement('div');
+    tempEl.style.position = 'absolute';
+    tempEl.style.visibility = 'hidden';
+    tempEl.style.pointerEvents = 'none';
+    tempEl.style.top = '0';
+    tempEl.style.left = '0';
+    // Attach to documentElement to ensure it inherits the dark class
+    document.documentElement.appendChild(tempEl);
+    
+    // Set CSS variable-based colors and get computed RGB values
+    tempEl.style.color = 'var(--foreground)';
+    const textColor = getComputedStyle(tempEl).color;
+    
+    tempEl.style.borderColor = 'var(--border)';
+    const gridColor = getComputedStyle(tempEl).borderColor;
+    
+    tempEl.style.backgroundColor = 'var(--card)';
+    const cardBg = getComputedStyle(tempEl).backgroundColor;
+    
+    document.documentElement.removeChild(tempEl);
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom' as const,
+          labels: {
+            color: textColor,
+            font: {
+              size: 12,
+            },
+            usePointStyle: true,
+            pointStyle: 'line',
+          },
+        },
+        tooltip: {
+          backgroundColor: cardBg,
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: gridColor,
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: (context: any) => {
+              return `${context.parsed.y} tasks completed`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: textColor,
+            font: {
+              size: 10,
+            },
+            maxRotation: 45,
+            minRotation: 45,
+          },
+          grid: {
+            color: gridColor,
+            opacity: 0.3,
+          },
+        },
+        y: {
+          ticks: {
+            color: textColor,
+            font: {
+              size: 12,
+            },
+            stepSize: 1,
+            precision: 0,
+          },
+          grid: {
+            color: gridColor,
+            opacity: 0.3,
+          },
+          beginAtZero: true,
+        },
+      },
+    };
+    
+    return options;
+  }, [theme, isDarkMode]);
 
   // Check permissions - users can only view their own performance
   const canView = useCallback(() => {
@@ -59,12 +211,32 @@ export function UserPerformanceDetail() {
       setLoading(true);
       setError(null);
 
+      // Fetch user name first
+      if (id) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', id)
+          .single();
+        if (userError) {
+          console.error('Error fetching user name:', userError);
+          setUserName(null);
+        } else if (userData) {
+          const user = userData as { full_name?: string | null; email?: string };
+          setUserName(user.full_name ?? user.email ?? 'User');
+        }
+      }
+
       // Fetch all data in parallel
       const [summaryResult, trendsResult, scoreResult, allUsersResult] = await Promise.all([
         getUserPerformanceSummary(id),
         getUserWeeklyTrends(id, 8),
         calculateProductivityScore(id),
-        permissions.canViewAllUsers ? getAllUsersPerformance() : Promise.resolve({ data: null, error: null }),
+        permissions.canViewAllUsers ? getAllUsersPerformance().catch((err) => {
+          // Silently handle errors for getAllUsersPerformance - it's optional data
+          console.warn('Could not fetch all users performance data:', err);
+          return { data: null, error: null };
+        }) : Promise.resolve({ data: null, error: null }),
       ]);
 
       if (summaryResult.error) {
@@ -84,8 +256,8 @@ export function UserPerformanceDetail() {
       setWeeklyTrends(trendsResult.data ?? []);
       setProductivityScore(scoreResult.data);
 
-      // Calculate ranking and percentile if admin
-      if (allUsersResult.data && allUsersResult.data.length > 0) {
+      // Calculate ranking and percentile if admin (silently fail if data unavailable)
+      if (allUsersResult && !allUsersResult.error && allUsersResult.data && allUsersResult.data.length > 0) {
         setAllUsersPerformance(allUsersResult.data);
         const userIndex = allUsersResult.data.findIndex((u) => u.user_id === id);
         if (userIndex !== -1) {
@@ -149,6 +321,23 @@ export function UserPerformanceDetail() {
     };
   }, [id, canView, fetchPerformanceData]);
 
+  // Set back button in top nav
+  useEffect(() => {
+    setBackButton(
+      <Button 
+        variant="ghost" 
+        size="icon"
+        onClick={() => navigate('/users')}
+        className="h-10 w-10"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </Button>
+    );
+    return () => {
+      setBackButton(null);
+    };
+  }, [navigate, setBackButton]);
+
   if (!canView()) {
     return (
       <div className="text-center py-8">
@@ -200,11 +389,7 @@ export function UserPerformanceDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="ghost" onClick={() => navigate('/users')} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Users
-          </Button>
-          <h1 className="text-2xl md:text-3xl font-bold">User Performance Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">{userName ?? 'User Performance Dashboard'}</h1>
           <p className="text-muted-foreground mt-1">
             {appUser?.id === id ? 'Your Performance Metrics' : 'Performance Analytics'}
           </p>
@@ -484,29 +669,16 @@ export function UserPerformanceDetail() {
             <CardTitle>8-Week Completion Trend</CardTitle>
             <CardDescription>Tasks completed per week</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={weeklyTrends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="week_label"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="completed_count"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  name="Tasks Completed"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          <CardContent className="p-4 sm:p-6 w-full">
+            <div className="w-full h-[300px]">
+              {chartData ? (
+                <Line data={chartData} options={chartOptions} key={`chart-${theme}`} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  No data available
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

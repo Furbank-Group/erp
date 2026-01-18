@@ -10,20 +10,30 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
         setIsOpen(false);
       }
     }
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen]);
 
@@ -49,9 +59,18 @@ export function NotificationBell() {
         )}
       </Button>
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-96">
-          <NotificationList onClose={() => setIsOpen(false)} />
-        </div>
+        <>
+          {/* Mobile backdrop overlay */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-[150] lg:hidden"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Notification dropdown */}
+          <div className="fixed lg:absolute right-0 lg:right-0 top-14 sm:top-16 lg:top-full lg:mt-2 w-screen max-w-[calc(100vw-2rem)] sm:max-w-sm lg:w-96 z-[200] lg:z-50 mx-4 sm:mx-0 lg:mx-0">
+            <NotificationList onClose={() => setIsOpen(false)} />
+          </div>
+        </>
       )}
     </div>
   );

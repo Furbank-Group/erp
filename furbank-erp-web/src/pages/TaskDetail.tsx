@@ -1,6 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePage } from '@/contexts/PageContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskLifecycleStatus, UserRole } from '@/lib/supabase/types';
@@ -14,22 +15,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit, ArrowLeft } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { Skeleton, SkeletonCard } from '@/components/skeletons';
 import { EditRequestButton } from '@/components/tasks/EditRequestButton';
 import { EditRequestForm } from '@/components/tasks/EditRequestForm';
 import { EditTaskForm } from '@/components/tasks/EditTaskForm';
 import { EditRequestReview } from '@/components/tasks/EditRequestReview';
-import { DeleteTaskButton } from '@/components/tasks/DeleteTaskButton';
 import { getTaskAssignees } from '@/lib/services/taskAssignmentService';
 import { getEditRequests } from '@/lib/services/taskEditRequestService';
+import { softDeleteTask } from '@/lib/services/taskDeletionService';
 import type { TaskEditRequest } from '@/lib/supabase/types';
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, permissions, role } = useAuth();
+  const { setBackButton, setActionButton } = usePage();
   const [project, setProject] = useState<Project | null>(null);
   const [taskUsers, setTaskUsers] = useState<UserWithRole[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -44,6 +46,7 @@ export function TaskDetail() {
   const [pendingEditRequest, setPendingEditRequest] = useState<TaskEditRequest | null>(null);
   const [taskAssignees, setTaskAssignees] = useState<UserWithRole[]>([]);
   const [isUserAssignedToTask, setIsUserAssignedToTask] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch single task with real-time updates
   const [task, setTask] = useState<Task | null>(null);
@@ -121,6 +124,23 @@ export function TaskDetail() {
       supabase.removeChannel(channel);
     };
   }, [id]);
+
+  // Set back button in top nav
+  useEffect(() => {
+    setBackButton(
+      <Button 
+        variant="ghost" 
+        size="icon"
+        onClick={() => navigate('/tasks')}
+        className="h-10 w-10"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </Button>
+    );
+    return () => {
+      setBackButton(null);
+    };
+  }, [navigate, setBackButton]);
   
   // Use real-time hooks for comments, notes, and files
   const { comments, loading: commentsLoading } = useRealtimeTaskComments(id ?? '');
@@ -506,6 +526,90 @@ export function TaskDetail() {
     );
   };
 
+  // Get canonical task lifecycle status (before early returns to ensure hooks are called consistently)
+  const taskLifecycleStatus = task ? ((task as any).task_status ?? task.status) : null;
+  const taskIsClosed = taskLifecycleStatus === TaskLifecycleStatus.CLOSED;
+  const taskIsDone = taskLifecycleStatus === TaskLifecycleStatus.DONE;
+  const taskIsWorkInProgress = taskLifecycleStatus === TaskLifecycleStatus.WORK_IN_PROGRESS;
+  const taskIsToDo = taskLifecycleStatus === TaskLifecycleStatus.TODO;
+
+  // Handle delete task
+  const handleDeleteTask = useCallback(async () => {
+    if (!task || !user) return;
+    
+    if (!confirm(
+      `Are you sure you want to delete this task?\n\n` +
+      `Task: ${task.title}\n\n` +
+      `This will soft-delete the task. It will be hidden from normal views but can be restored later.`
+    )) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { error } = await softDeleteTask(task.id, user.id);
+      if (error) {
+        alert(`Failed to delete task: ${error.message}`);
+        setDeleting(false);
+        return;
+      }
+      navigate('/tasks');
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setDeleting(false);
+    }
+  }, [task, user, navigate]);
+
+  // Set action buttons in top nav
+  useEffect(() => {
+    const buttons = [];
+    
+    // Edit button
+    if (permissions.canEditTasks && !taskIsClosed && task) {
+      buttons.push(
+        <Button
+          key="edit"
+          variant="ghost"
+          size="icon"
+          onClick={() => setShowEditTaskForm(true)}
+          className="h-10 w-10"
+        >
+          <Edit className="h-5 w-5" />
+        </Button>
+      );
+    }
+    
+    // Delete button
+    if (permissions.canDeleteTasks && task && user) {
+      buttons.push(
+        <Button
+          key="delete"
+          variant="ghost"
+          size="icon"
+          onClick={handleDeleteTask}
+          disabled={deleting}
+          className="h-10 w-10 text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-5 w-5" />
+        </Button>
+      );
+    }
+
+    if (buttons.length > 0) {
+      setActionButton(
+        <div className="flex items-center gap-2">
+          {buttons}
+        </div>
+      );
+    } else {
+      setActionButton(null);
+    }
+
+    return () => {
+      setActionButton(null);
+    };
+  }, [permissions.canEditTasks, permissions.canDeleteTasks, taskIsClosed, task, user, deleting, setActionButton, handleDeleteTask, setShowEditTaskForm]);
+
   // Removed getReviewStatusDisplay - using canonical task_status instead
 
   if (loading) {
@@ -542,49 +646,27 @@ export function TaskDetail() {
     );
   }
 
-  // Get canonical task lifecycle status
-  const taskLifecycleStatus = task ? ((task as any).task_status ?? task.status) : null;
-  const taskIsClosed = taskLifecycleStatus === TaskLifecycleStatus.CLOSED;
-  const taskIsDone = taskLifecycleStatus === TaskLifecycleStatus.DONE;
-  const taskIsWorkInProgress = taskLifecycleStatus === TaskLifecycleStatus.WORK_IN_PROGRESS;
-  const taskIsToDo = taskLifecycleStatus === TaskLifecycleStatus.TODO;
   // Removed unused variables: closedByProject, closedAt, isArchived
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" onClick={() => navigate('/tasks')}>
-            ← Back to Tasks
-          </Button>
-          <h1 className="text-3xl font-bold mt-2">{task.title}</h1>
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 w-full">
+        <div className="flex-1 min-w-0 w-full">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-2 break-words">{task.title}</h1>
           {project ? (
-            <p className="text-muted-foreground">Project: {project.name}</p>
+            <p className="text-muted-foreground break-words">Project: {project.name}</p>
           ) : (
-            <p className="text-muted-foreground italic">Standalone Task (No Project)</p>
+            <p className="text-muted-foreground italic break-words">Standalone Task (No Project)</p>
           )}
         </div>
-        <div className="flex gap-2">
-          {permissions.canEditTasks && !taskIsClosed && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEditTaskForm(true)}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Task
-            </Button>
-          )}
-          {!permissions.canEditTasks && permissions.canRequestTaskEdit && !taskIsClosed && (
+        {!permissions.canEditTasks && permissions.canRequestTaskEdit && !taskIsClosed && (
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
             <EditRequestButton
               taskId={id ?? ''}
               onRequestClick={() => setShowEditRequestForm(true)}
             />
-          )}
-          {permissions.canDeleteTasks && task && (
-            <DeleteTaskButton task={task} onDeleted={() => navigate('/tasks')} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Lifecycle Status Banner */}
@@ -597,18 +679,18 @@ export function TaskDetail() {
         const StatusIcon = statusDisplay.icon;
         return (
           <Card className={`border-2 ${
-            taskIsClosed ? 'border-gray-400 bg-gray-50' :
-            taskIsDone ? 'border-yellow-400 bg-yellow-50' :
-            taskIsWorkInProgress ? 'border-blue-400 bg-blue-50' :
-            'border-gray-300 bg-gray-50'
+            taskIsClosed ? 'border-gray-400 bg-gray-50 dark:bg-gray-900' :
+            taskIsDone ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950' :
+            taskIsWorkInProgress ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' :
+            'border-gray-300 bg-gray-50 dark:bg-gray-900'
           }`}>
           <CardContent className="pt-6">
               <div className="flex items-start gap-3">
                 <StatusIcon className={`h-6 w-6 mt-0.5 ${
-                  taskIsClosed ? 'text-gray-600' :
-                  taskIsDone ? 'text-yellow-600' :
-                  taskIsWorkInProgress ? 'text-blue-600' :
-                  'text-gray-600'
+                  taskIsClosed ? 'text-gray-600 dark:text-gray-400' :
+                  taskIsDone ? 'text-yellow-600 dark:text-yellow-400' :
+                  taskIsWorkInProgress ? 'text-blue-600 dark:text-blue-400' :
+                  'text-gray-600 dark:text-gray-400'
                 }`} />
                 <div className="flex-1">
                   <p className="font-semibold text-lg">
@@ -726,8 +808,8 @@ export function TaskDetail() {
         />
       )}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2 space-y-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 w-full">
+        <div className="lg:col-span-2 space-y-4 sm:space-y-6 w-full">
           <Card>
             <CardHeader>
               <CardTitle>Description</CardTitle>
@@ -740,29 +822,35 @@ export function TaskDetail() {
           </Card>
 
           {permissions.canAddComments && (
-            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-75">
-              <CardHeader>
-                <CardTitle>Comments</CardTitle>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-75 w-full">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">Comments</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                 {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Textarea
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder="Add a comment..."
                       rows={3}
+                      className="w-full min-h-[80px]"
                     />
-                    <Button onClick={handleAddComment}>Post</Button>
+                    <Button 
+                      onClick={handleAddComment}
+                      className="min-h-[44px] w-full sm:w-auto sm:min-w-[100px]"
+                    >
+                      Post
+                    </Button>
                   </div>
                 )}
                 {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     Only the assigned user or Super Admin can add comments.
                   </div>
                 )}
                 {taskIsClosed && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     Comments are disabled for closed tasks.
                   </div>
                 )}
@@ -802,29 +890,35 @@ export function TaskDetail() {
           )}
 
           {permissions.canAddNotes && (
-            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-150">
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-150 w-full">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">Notes</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                 {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Textarea
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Add a note..."
                       rows={3}
+                      className="w-full min-h-[80px]"
                     />
-                    <Button onClick={handleAddNote}>Add Note</Button>
+                    <Button 
+                      onClick={handleAddNote}
+                      className="min-h-[44px] w-full sm:w-auto sm:min-w-[120px]"
+                    >
+                      Add Note
+                    </Button>
                   </div>
                 )}
                 {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     Only the assigned user or Super Admin can add notes.
                   </div>
                 )}
                 {taskIsClosed && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     Notes are disabled for closed tasks.
                   </div>
                 )}
@@ -852,23 +946,28 @@ export function TaskDetail() {
           )}
 
           {permissions.canUploadFiles && (
-            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">
-              <CardHeader>
-                <CardTitle>Files</CardTitle>
-                <CardDescription>
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200 w-full">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">Files</CardTitle>
+                <CardDescription className="text-xs sm:text-sm break-words">
                   Allowed file types: PDF, JPEG, PNG, DOC, DOCX, XLS, XLSX
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
                 {!taskIsClosed && (isUserAssignedToTask || role === UserRole.SUPER_ADMIN) && (
                   <div className="space-y-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Input
                         type="file"
                         onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                         accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                        className="w-full min-h-[44px]"
                       />
-                      <Button onClick={handleFileUpload} disabled={!selectedFile}>
+                      <Button 
+                        onClick={handleFileUpload} 
+                        disabled={!selectedFile}
+                        className="min-h-[44px] w-full sm:w-auto sm:min-w-[100px]"
+                      >
                         Upload
                       </Button>
                     </div>
@@ -878,16 +977,16 @@ export function TaskDetail() {
                   </div>
                 )}
                 {!taskIsClosed && !isUserAssignedToTask && role !== UserRole.SUPER_ADMIN && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     Only the assigned user or Super Admin can upload files.
                   </div>
                 )}
                 {taskIsClosed && (
-                  <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     File uploads are disabled for closed tasks.
                   </div>
                 )}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">
                   {files.map((file) => {
                     // Use signed URL if available (for private buckets), otherwise fallback to public URL
                     const path = file.file_path.startsWith('task-files/') 
@@ -970,12 +1069,12 @@ export function TaskDetail() {
           )}
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
+        <div className="space-y-4 sm:space-y-6 w-full lg:w-auto">
+          <Card className="w-full">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
               {/* Team Members */}
               {taskUsers.length > 0 && (
                 <div className="space-y-2">
@@ -1060,17 +1159,17 @@ export function TaskDetail() {
           </Card>
 
           {/* Lifecycle Actions Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lifecycle Actions</CardTitle>
-              <CardDescription>
+          <Card className="w-full">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Lifecycle Actions</CardTitle>
+              <CardDescription className="text-xs sm:text-sm break-words">
                 Actions available for the current lifecycle stage
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 sm:p-6 pt-0">
               {/* Review Information Display */}
               {taskIsDone && (
-                <div className="space-y-2 text-sm p-3 bg-yellow-50 rounded-md">
+                <div className="space-y-2 text-sm p-3 bg-yellow-50 dark:bg-yellow-950 rounded-md">
                   {reviewRequestedBy && (
                     <div>
                       <span className="text-muted-foreground">Review requested by: </span>
@@ -1088,7 +1187,7 @@ export function TaskDetail() {
               )}
 
               {taskIsClosed && reviewedBy && task.reviewed_at && (
-                <div className="space-y-2 text-sm p-3 bg-gray-50 rounded-md">
+                <div className="space-y-2 text-sm p-3 bg-muted rounded-md">
                     <div>
                     <span className="text-muted-foreground">Approved by: </span>
                       <span className="font-medium">{reviewedBy.full_name ?? reviewedBy.email}</span>
@@ -1097,7 +1196,7 @@ export function TaskDetail() {
                       </span>
                     </div>
                   {task.review_comments && (
-                    <div className="mt-2 p-2 bg-white rounded border">
+                    <div className="mt-2 p-2 bg-card rounded border">
                       <p className="text-sm whitespace-pre-wrap">{task.review_comments}</p>
                     </div>
                   )}
@@ -1109,7 +1208,7 @@ export function TaskDetail() {
                     <Button
                       onClick={handleRequestReview}
                       disabled={loadingReview}
-                      className="w-full"
+                      className="w-full min-h-[44px]"
                   variant="default"
                     >
                       <MessageSquare className="h-4 w-4 mr-2" />
@@ -1118,7 +1217,7 @@ export function TaskDetail() {
                   )}
 
               {taskIsWorkInProgress && !isUserAssignedToTask && !permissions.canReviewTasks && (
-                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   Only assigned users can request review for tasks in Work-In-Progress.
                 </div>
               )}
@@ -1132,12 +1231,12 @@ export function TaskDetail() {
                     placeholder="Add review comments (optional for approval, required for rejection)..."
                     rows={3}
                   />
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       onClick={handleApprove}
                       disabled={loadingReview}
                       variant="default"
-                      className="flex-1"
+                      className="flex-1 min-h-[44px] w-full sm:w-auto"
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       Approve & Close
@@ -1146,7 +1245,7 @@ export function TaskDetail() {
                       onClick={handleRequestChanges}
                       disabled={loadingReview || !reviewComment.trim()}
                       variant="destructive"
-                      className="flex-1"
+                      className="flex-1 min-h-[44px] w-full sm:w-auto"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Reject & Reopen
@@ -1174,7 +1273,7 @@ export function TaskDetail() {
                       setLoadingReview(false);
                     }}
                     disabled={loadingReview}
-                  className="w-full"
+                  className="w-full min-h-[44px]"
                   >
                     <Archive className="h-4 w-4 mr-2" />
                   Reopen Task
@@ -1183,13 +1282,13 @@ export function TaskDetail() {
 
               {/* No actions available */}
               {taskIsToDo && (
-                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   Start working on this task by adding a comment, note, or uploading a file. The task will automatically move to Work-In-Progress.
                 </div>
               )}
 
               {taskIsClosed && !permissions.canArchiveTasks && (
-                <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-md">
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   This task is closed and read-only. Only Super Admin can reopen tasks.
                 </div>
               )}
