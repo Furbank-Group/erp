@@ -12,6 +12,7 @@ export interface TaskFilters {
   projectId?: string;
   assignedTo?: string;
   includeArchived?: boolean; // Set to true to include archived tasks (Super Admin only)
+  searchQuery?: string; // Search query for text search across title, description, project name, assignees, status, due date
 }
 
 export interface TaskWithRelations extends Task {
@@ -146,6 +147,22 @@ export function useRealtimeTasks(filters?: TaskFilters) {
         query = query.eq('assigned_to', filters.assignedTo);
       }
 
+      // Apply search query filter
+      // Search across: title, description, task_status, project name (via join), assignee names (post-fetch)
+      if (filters?.searchQuery && filters.searchQuery.trim().length > 0) {
+        const searchTerm = filters.searchQuery.trim();
+        const searchPattern = `%${searchTerm}%`;
+        
+        // Search in task fields: title, description, task_status
+        // Use or() with properly formatted filter string
+        // Format: "field1.ilike.pattern,field2.ilike.pattern"
+        const searchFilter = `title.ilike.${searchPattern},description.ilike.${searchPattern},task_status.ilike.${searchPattern}`;
+        query = query.or(searchFilter);
+        
+        // For due date search, we'll handle it post-fetch since date formatting varies
+        // For project name and assignee names, we'll filter post-fetch for better performance
+      }
+
       query = query.order('created_at', { ascending: false });
 
       const { data, error: fetchError } = await query;
@@ -218,12 +235,48 @@ export function useRealtimeTasks(filters?: TaskFilters) {
           });
         }
 
-        const tasksWithRelations = data.map((task: any) => ({
+        let tasksWithRelations = data.map((task: any) => ({
           ...task,
           projects: task.projects ?? null,
           assigned_user: task.assigned_to ? usersMap.get(task.assigned_to) ?? null : null, // Legacy
           assignees: assigneesMap.get(task.id) ?? [],
         }));
+
+        // Post-fetch filtering for project name, assignee names, and due date
+        if (filters?.searchQuery && filters.searchQuery.trim().length > 0) {
+          const searchTerm = filters.searchQuery.trim().toLowerCase();
+          
+          tasksWithRelations = tasksWithRelations.filter((task: any) => {
+            // Check project name
+            const projectName = task.projects?.name?.toLowerCase() ?? '';
+            if (projectName.includes(searchTerm)) return true;
+            
+            // Check assignee names (both legacy and multi-assignee)
+            const assignedUserName = task.assigned_user?.full_name?.toLowerCase() ?? task.assigned_user?.email?.toLowerCase() ?? '';
+            if (assignedUserName.includes(searchTerm)) return true;
+            
+            const assigneeNames = (task.assignees ?? [])
+              .map((a: any) => a.full_name?.toLowerCase() ?? a.email?.toLowerCase() ?? '')
+              .join(' ');
+            if (assigneeNames.includes(searchTerm)) return true;
+            
+            // Check due date (format as readable date string)
+            if (task.due_date) {
+              try {
+                const dueDate = new Date(task.due_date);
+                const dateStr = dueDate.toLocaleDateString().toLowerCase();
+                const timeStr = dueDate.toLocaleTimeString().toLowerCase();
+                if (dateStr.includes(searchTerm) || timeStr.includes(searchTerm)) return true;
+              } catch (e) {
+                // Ignore date parsing errors
+              }
+            }
+            
+            // If none of the above matched, the task was already filtered by server-side search
+            // (title, description, task_status), so include it
+            return true;
+          });
+        }
 
         setTasks(tasksWithRelations as TaskWithRelations[]);
       } else {

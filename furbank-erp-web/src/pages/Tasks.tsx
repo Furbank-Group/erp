@@ -1,12 +1,13 @@
-import { useEffect, useState, useMemo, memo } from 'react';
+import { useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams, Link } from 'react-router-dom';
 import { usePage } from '@/contexts/PageContext';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import type { Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskStatus, TaskPriority } from '@/lib/supabase/types';
 import { useRealtimeTasks, type TaskFilters, type TaskWithRelations } from '@/hooks/useRealtimeTasks';
+import { highlightText } from '@/lib/utils/textHighlight';
 
 type AppUser = UserWithRole;
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { Skeleton, SkeletonTaskCard } from '@/components/skeletons';
 import { AssigneeSelector } from '@/components/tasks/AssigneeSelector';
 
 // Memoized task list item component
-const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
+const TaskListItem = memo(({ task, searchQuery }: { task: TaskWithRelations; searchQuery?: string }) => {
   const priorityDisplay = getPriorityDisplay(task.priority);
   const statusDisplay = getTaskStatusDisplay(
     (task as any).task_status, // Use canonical task_status field
@@ -53,10 +54,10 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <CardTitle className="text-base sm:text-lg group-hover:text-primary transition-colors break-words">
-                {task.title}
+                {highlightText(task.title, searchQuery)}
               </CardTitle>
               <CardDescription className="break-words mt-1">
-                {(task.projects as Project)?.name ?? 'Standalone Task'}
+                {highlightText((task.projects as Project)?.name ?? 'Standalone Task', searchQuery)}
                 {taskIsClosed && closedByProject && (
                   <span className="text-xs italic text-muted-foreground ml-2">
                     (Closed - Project closed)
@@ -72,7 +73,7 @@ const TaskListItem = memo(({ task }: { task: TaskWithRelations }) => {
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
           <p className="text-sm text-muted-foreground line-clamp-2 mb-4 break-words">
-            {task.description ?? 'No description'}
+            {highlightText(task.description ?? 'No description', searchQuery)}
           </p>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -114,6 +115,8 @@ export function Tasks() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(50);
   const [activeTab, setActiveTab] = useState<'all' | 'todo' | 'work-in-progress' | 'done' | 'closed'>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -124,7 +127,18 @@ export function Tasks() {
         status: 'to_do' as TaskStatus, // Legacy field - task_status will be set to 'ToDo' by default
   });
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchInput);
+      setCurrentPage(1); // Reset to first page when search changes
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   // Build filters from URL params and active tab - using canonical lifecycle
+  // Note: We exclude searchQuery from server-side filters to avoid re-fetching on every search change
   const taskFilters = useMemo<TaskFilters>(() => {
     const statusParam = searchParams.get('status');
     const taskStatusParam = searchParams.get('task_status');
@@ -148,11 +162,62 @@ export function Tasks() {
       filters.includeArchived = true;
     }
     
+    // Don't add searchQuery here - we'll filter client-side to avoid re-fetches
+    
     return filters;
   }, [searchParams, activeTab]);
 
-  // Use real-time tasks hook
-  const { tasks, loading } = useRealtimeTasks(taskFilters);
+  // Use real-time tasks hook (without search query to avoid re-fetching)
+  const { tasks: allTasks, loading } = useRealtimeTasks(taskFilters);
+
+  // Apply client-side search filtering
+  const tasks = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) {
+      return allTasks;
+    }
+
+    const searchTerm = debouncedSearchQuery.trim().toLowerCase();
+    
+    return allTasks.filter((task) => {
+      // Search in title
+      if (task.title?.toLowerCase().includes(searchTerm)) return true;
+      
+      // Search in description
+      if (task.description?.toLowerCase().includes(searchTerm)) return true;
+      
+      // Search in task status
+      const taskStatus = ((task as any).task_status ?? task.status ?? '').toLowerCase();
+      if (taskStatus.includes(searchTerm)) return true;
+      
+      // Search in project name
+      const projectName = (task.projects as Project)?.name?.toLowerCase() ?? '';
+      if (projectName.includes(searchTerm)) return true;
+      
+      // Search in assignee names (both legacy and multi-assignee)
+      const assignedUserName = (task.assigned_user as UserWithRole)?.full_name?.toLowerCase() ?? 
+                               (task.assigned_user as UserWithRole)?.email?.toLowerCase() ?? '';
+      if (assignedUserName.includes(searchTerm)) return true;
+      
+      const assigneeNames = (task.assignees ?? [])
+        .map((a: any) => a.full_name?.toLowerCase() ?? a.email?.toLowerCase() ?? '')
+        .join(' ');
+      if (assigneeNames.includes(searchTerm)) return true;
+      
+      // Search in due date
+      if (task.due_date) {
+        try {
+          const dueDate = new Date(task.due_date);
+          const dateStr = dueDate.toLocaleDateString().toLowerCase();
+          const timeStr = dueDate.toLocaleTimeString().toLowerCase();
+          if (dateStr.includes(searchTerm) || timeStr.includes(searchTerm)) return true;
+        } catch (e) {
+          // Ignore date parsing errors
+        }
+      }
+      
+      return false;
+    });
+  }, [allTasks, debouncedSearchQuery]);
 
   // Set action button in top bar
   useEffect(() => {
@@ -317,6 +382,11 @@ export function Tasks() {
     }
   };
 
+  const handleClearSearch = useCallback(() => {
+    setSearchInput('');
+    setDebouncedSearchQuery('');
+    setCurrentPage(1);
+  }, []);
 
   if (loading) {
     return (
@@ -341,6 +411,29 @@ export function Tasks() {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
+      {/* Search Bar */}
+      <div className="w-full">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search tasks, projects, users..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-10 pr-10 min-h-[44px]"
+            aria-label="Search tasks"
+          />
+          {searchInput && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Mobile: Dropdown filter */}
       <div className="lg:hidden w-full">
@@ -350,6 +443,7 @@ export function Tasks() {
             const tab = e.target.value as typeof activeTab;
             setActiveTab(tab);
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className="w-full min-h-[44px]"
         >
@@ -367,6 +461,7 @@ export function Tasks() {
           onClick={() => {
             setActiveTab('all');
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'all'
@@ -380,6 +475,7 @@ export function Tasks() {
           onClick={() => {
             setActiveTab('todo');
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'todo'
@@ -393,6 +489,7 @@ export function Tasks() {
           onClick={() => {
             setActiveTab('work-in-progress');
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'work-in-progress'
@@ -406,6 +503,7 @@ export function Tasks() {
           onClick={() => {
             setActiveTab('done');
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'done'
@@ -419,6 +517,7 @@ export function Tasks() {
           onClick={() => {
             setActiveTab('closed');
             setSearchParams({});
+            setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'closed'
@@ -519,7 +618,20 @@ export function Tasks() {
       {tasks.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            No tasks found.
+            {debouncedSearchQuery.trim().length > 0 ? (
+              <>
+                No tasks found matching &quot;{debouncedSearchQuery}&quot;.
+                <br />
+                <button
+                  onClick={handleClearSearch}
+                  className="text-primary hover:underline mt-2"
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              'No tasks found.'
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -528,7 +640,7 @@ export function Tasks() {
             {tasks
               .slice((currentPage - 1) * pageSize, currentPage * pageSize)
               .map((task) => (
-                <TaskListItem key={task.id} task={task} />
+                <TaskListItem key={task.id} task={task} searchQuery={debouncedSearchQuery} />
               ))}
           </div>
           {tasks.length > pageSize && (
