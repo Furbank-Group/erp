@@ -16,14 +16,15 @@ import { Select } from '@/components/ui/select';
 import { getProjectStatusDisplay, getTaskStatusDisplay, getPriorityDisplay } from '@/lib/utils/taskDisplay';
 import { updateProject, closeProject, reopenProject } from '@/lib/services/projectService';
 import { isTaskClosed } from '@/lib/services/projectService';
+import { deleteProject } from '@/lib/services/projectDeletionService';
 import { Link } from 'react-router-dom';
-import { Edit, Save, X, ArrowLeft } from 'lucide-react';
+import { Edit, Save, X, ArrowLeft, Trash2 } from 'lucide-react';
 import { Skeleton, SkeletonCard, SkeletonTaskCard } from '@/components/skeletons';
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { permissions } = useAuth();
+  const { permissions, user } = useAuth();
   const { setBackButton, setActionButton } = usePage();
   const [members, setMembers] = useState<UserWithRole[]>([]);
   const [assignedUsers, setAssignedUsers] = useState<UserWithRole[]>([]);
@@ -35,6 +36,7 @@ export function ProjectDetail() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Use real-time hooks
   const { projects: projectList, loading: projectsLoading } = useRealtimeProjects();
@@ -73,7 +75,7 @@ export function ProjectDetail() {
         onClick={() => navigate('/projects')}
         className="h-10 w-10"
       >
-        <ArrowLeft className="h-5 w-5" />
+        <ArrowLeft className="h-10 w-10" />
       </Button>
     );
     return () => {
@@ -208,12 +210,12 @@ export function ProjectDetail() {
         size="icon"
         onClick={isEditing ? handleCancelEdit : handleEdit}
         disabled={saving}
-        className="h-10 w-10"
+        className="h-10 w-10 p-0"
       >
         {isEditing ? (
-          <X className="h-5 w-5" />
+          <X className="h-8 w-8" />
         ) : (
-          <Edit className="h-5 w-5" />
+          <Edit className="h-8 w-8" />
         )}
       </Button>
     );
@@ -292,6 +294,35 @@ export function ProjectDetail() {
       setError(err instanceof Error ? err.message : 'Failed to update project');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!project || !id || !user || !permissions.canDeleteProjects) return;
+
+    const taskCount = tasks.length;
+    const confirmMessage =
+      `Are you sure you want to delete this project?\n\n` +
+      `Project: ${project.name}\n` +
+      `Tasks: ${taskCount}\n\n` +
+      `This will permanently delete the project and all related tasks and members.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const { error: deleteError } = await deleteProject(id);
+      if (deleteError) {
+        alert(`Failed to delete project: ${deleteError.message}`);
+        setDeleting(false);
+        return;
+      }
+      navigate('/projects');
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setDeleting(false);
     }
   };
 
@@ -544,6 +575,30 @@ export function ProjectDetail() {
               )}
             </CardContent>
           </Card>
+
+          {permissions.canDeleteProjects && user && (
+            <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200 border-destructive/50">
+              <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                <CardDescription>
+                  Deleting a project permanently removes it and all related data.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  This action cannot be undone. All tasks and members will be removed.
+                </p>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteProject}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {deleting ? 'Deleting...' : 'Delete Project'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {members.length > 0 && (
             <Card className="animate-in fade-in slide-in-from-bottom-4 duration-300 delay-200">

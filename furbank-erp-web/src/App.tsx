@@ -19,6 +19,7 @@ const TaskDetail = lazy(() => import('./pages/TaskDetail').then(m => ({ default:
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
 const UserPerformanceDetail = lazy(() => import('./pages/UserPerformanceDetail').then(m => ({ default: m.UserPerformanceDetail })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 
 // Loading fallback component - memoized to prevent re-renders
 const PageLoadingFallback = memo(() => (
@@ -163,6 +164,16 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Profile />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Suspense>
   );
@@ -172,8 +183,8 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <ThemeProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>
             <RealtimeProvider>
               <SyncProvider>
                 <NotificationProvider>
@@ -183,8 +194,8 @@ function App() {
                 </NotificationProvider>
               </SyncProvider>
             </RealtimeProvider>
-          </AuthProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
   );

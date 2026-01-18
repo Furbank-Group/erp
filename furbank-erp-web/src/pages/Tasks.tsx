@@ -229,12 +229,12 @@ export function Tasks() {
             onClick={() => setShowCreateForm((prev) => !prev)}
             size="icon"
             variant="ghost"
-            className="h-10 w-10 lg:hidden"
+            className="h-10 w-10 p-0 lg:hidden"
           >
             {showCreateForm ? (
-              <X className="h-5 w-5" />
+              <X className="h-8 w-8" />
             ) : (
-              <Plus className="h-5 w-5" />
+              <Plus className="h-8 w-8" />
             )}
           </Button>
           {/* Desktop: Full button with text */}

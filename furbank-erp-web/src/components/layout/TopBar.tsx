@@ -1,6 +1,9 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { usePage } from '@/contexts/PageContext';
+import { UserAvatar } from '@/components/users/UserAvatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -8,11 +11,14 @@ const pageTitles: Record<string, string> = {
   '/projects': 'Projects',
   '/users': 'User Management',
   '/reports': 'Reports',
+  '/profile': 'Profile',
 };
 
 export function TopBar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { actionButton, backButton } = usePage();
+  const { user } = useAuth();
   
   // Get page title from route
   const getPageTitle = () => {
@@ -52,6 +58,18 @@ export function TopBar() {
           <div className="flex items-center gap-2">
             {actionButton}
           </div>
+        )}
+        {/* User Avatar - links to profile */}
+        {user && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-12 w-12 p-0 rounded-full"
+            onClick={() => navigate('/profile')}
+            aria-label="View profile"
+          >
+            <UserAvatar size="lg" />
+          </Button>
         )}
       </div>
     </header>

@@ -45,6 +45,8 @@ export interface Database {
           is_active: boolean;
           deleted_at: string | null; // Soft delete timestamp
           deleted_by: string | null; // User who soft-deleted this user
+          theme_preference: string | null; // 'light', 'dark', or 'system'
+          avatar_url: string | null; // URL to profile avatar image
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -57,6 +59,8 @@ export interface Database {
           is_active?: boolean;
           deleted_at?: string | null;
           deleted_by?: string | null;
+          theme_preference?: string | null;
+          avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -69,6 +73,8 @@ export interface Database {
           is_active?: boolean;
           deleted_at?: string | null;
           deleted_by?: string | null;
+          theme_preference?: string | null;
+          avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
           created_by?: string | null;
@@ -432,6 +438,9 @@ export interface Database {
         };
       };
     };
+    Views: {
+      [key: string]: never;
+    };
     Functions: {
       create_my_user_record: {
         Args: Record<PropertyKey, never>;
@@ -623,6 +632,12 @@ export interface Database {
           error?: string;
         };
       };
+    };
+    Enums: {
+      [key: string]: never;
+    };
+    CompositeTypes: {
+      [key: string]: never;
     };
   };
 }

@@ -134,7 +134,7 @@ export function TaskDetail() {
         onClick={() => navigate('/tasks')}
         className="h-10 w-10"
       >
-        <ArrowLeft className="h-5 w-5" />
+        <ArrowLeft className="h-10 w-10" />
       </Button>
     );
     return () => {
@@ -572,9 +572,9 @@ export function TaskDetail() {
           variant="ghost"
           size="icon"
           onClick={() => setShowEditTaskForm(true)}
-          className="h-10 w-10"
+          className="h-10 w-10 p-0"
         >
-          <Edit className="h-5 w-5" />
+          <Edit className="h-8 w-8" />
         </Button>
       );
     }
@@ -588,9 +588,9 @@ export function TaskDetail() {
           size="icon"
           onClick={handleDeleteTask}
           disabled={deleting}
-          className="h-10 w-10 text-destructive hover:text-destructive"
+          className="h-10 w-10 p-0 text-destructive hover:text-destructive"
         >
-          <Trash2 className="h-5 w-5" />
+          <Trash2 className="h-8 w-8" />
         </Button>
       );
     }

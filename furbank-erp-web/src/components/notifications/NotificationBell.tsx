@@ -43,10 +43,10 @@ export function NotificationBell() {
         variant="ghost"
         size="icon"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative"
+        className="relative h-10 w-10 p-0"
         aria-label="Notifications"
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-8 w-8" />
         {unreadCount > 0 && (
           <span
             className={cn(

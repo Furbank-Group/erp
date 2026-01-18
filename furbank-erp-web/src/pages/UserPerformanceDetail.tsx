@@ -330,7 +330,7 @@ export function UserPerformanceDetail() {
         onClick={() => navigate('/users')}
         className="h-10 w-10"
       >
-        <ArrowLeft className="h-5 w-5" />
+        <ArrowLeft className="h-10 w-10" />
       </Button>
     );
     return () => {
