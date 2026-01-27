@@ -843,6 +843,8 @@ export const NotificationType = {
   REVIEW_COMPLETED: 'review_completed',
   COMMENT_ADDED: 'comment_added',
   DOCUMENT_UPLOADED: 'document_uploaded',
+  TODO_COMPLETED: 'todo_completed',
+  BULLETIN_POSTED: 'bulletin_posted',
 } as const;
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
