@@ -57,7 +57,8 @@ const TaskListItem = memo(({ task, searchQuery, returnTab }: { task: TaskWithRel
   return (
     <Link
       key={task.id}
-      to={{ pathname: `/tasks/${task.id}`, state: returnTab != null ? { returnTab } : undefined }}
+      to={`/tasks/${task.id}`}
+      state={returnTab != null ? { returnTab } : undefined}
       className="block"
     >
       <Card
@@ -547,7 +548,7 @@ export function Tasks() {
           onChange={(e) => {
             const tab = e.target.value as typeof activeTab;
             setActiveTab(tab);
-            setSearchParams(tab === 'all' ? {} : { task_status: tab === 'todo' ? 'ToDo' : tab === 'work-in-progress' ? 'Work-In-Progress' : tab === 'done' ? 'Done' : 'Closed' });
+            setSearchParams(getSearchParamsForTab(tab));
             setCurrentPage(1);
           }}
           className="w-full min-h-[44px]"
@@ -565,7 +566,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('all');
-            setSearchParams({});
+            setSearchParams(getSearchParamsForTab('all'));
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -579,7 +580,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('todo');
-            setSearchParams({ task_status: 'ToDo' });
+            setSearchParams(getSearchParamsForTab('todo'));
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -593,7 +594,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('work-in-progress');
-            setSearchParams({ task_status: 'Work-In-Progress' });
+            setSearchParams(getSearchParamsForTab('work-in-progress'));
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -607,7 +608,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('done');
-            setSearchParams({ task_status: 'Done' });
+            setSearchParams(getSearchParamsForTab('done'));
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -621,7 +622,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('closed');
-            setSearchParams({ task_status: 'Closed' });
+            setSearchParams(getSearchParamsForTab('closed'));
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
