@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, memo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { usePage } from '@/contexts/PageContext';
 import { Plus, X, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
@@ -35,7 +35,7 @@ const getUserInitials = (user: UserWithRole | null | undefined): string => {
 };
 
 // Memoized task list item component
-const TaskListItem = memo(({ task, searchQuery, returnTab }: { task: TaskWithRelations; searchQuery?: string; returnTab?: 'all' | 'todo' | 'work-in-progress' | 'done' | 'closed' }) => {
+const TaskListItem = memo(({ task, searchQuery, onNavigateToTask }: { task: TaskWithRelations; searchQuery?: string; onNavigateToTask: (taskId: string) => void }) => {
   const priorityDisplay = getPriorityDisplay(task.priority);
   const statusDisplay = getTaskStatusDisplay(
     (task as any).task_status, // Use canonical task_status field
@@ -54,11 +54,26 @@ const TaskListItem = memo(({ task, searchQuery, returnTab }: { task: TaskWithRel
     ? (task.assignees ?? [])
     : (task.assigned_user ? [task.assigned_user] : []);
 
+  const handleClick = () => {
+    if (taskIsClosed || isArchived) return;
+    onNavigateToTask(task.id);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (taskIsClosed || isArchived) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onNavigateToTask(task.id);
+    }
+  };
+
   return (
-    <Link
+    <div
       key={task.id}
-      to={`/tasks/${task.id}`}
-      state={returnTab != null ? { returnTab } : undefined}
+      role="link"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className="block"
     >
       <Card
@@ -148,7 +163,7 @@ const TaskListItem = memo(({ task, searchQuery, returnTab }: { task: TaskWithRel
           </div>
         </CardContent>
       </Card>
-    </Link>
+    </div>
   );
 });
 
@@ -171,6 +186,8 @@ export function Tasks() {
   const { permissions } = useAuth();
   const { setActionButton } = usePage();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -189,6 +206,38 @@ export function Tasks() {
         status: 'to_do' as TaskStatus, // Legacy field - task_status will be set to 'ToDo' by default
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+  // Navigate to task with scroll position and page for restoration on back
+  const handleNavigateToTask = useCallback(
+    (taskId: string) => {
+      const main = document.querySelector('main');
+      const scrollY = main?.scrollTop ?? 0;
+      navigate(`/tasks/${taskId}`, {
+        state: { returnTab: activeTab, scrollY, currentPage },
+      });
+    },
+    [navigate, activeTab, currentPage]
+  );
+
+  // Restore currentPage and scroll position when returning from task detail
+  useEffect(() => {
+    const s = location.state as { scrollY?: number; currentPage?: number } | undefined;
+    if (s?.currentPage != null && s.currentPage >= 1) {
+      setCurrentPage(s.currentPage);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const s = location.state as { scrollY?: number; currentPage?: number } | undefined;
+    if (s?.scrollY != null && s.scrollY > 0) {
+      const main = document.querySelector('main');
+      if (main) {
+        requestAnimationFrame(() => {
+          main.scrollTop = s.scrollY!;
+        });
+      }
+    }
+  }, [location.state]);
 
   // Debounce search input
   useEffect(() => {
@@ -783,7 +832,7 @@ export function Tasks() {
             {tasks
               .slice((currentPage - 1) * pageSize, currentPage * pageSize)
               .map((task) => (
-                <TaskListItem key={task.id} task={task} searchQuery={debouncedSearchQuery} returnTab={activeTab} />
+                <TaskListItem key={task.id} task={task} searchQuery={debouncedSearchQuery} onNavigateToTask={handleNavigateToTask} />
               ))}
           </div>
           {tasks.length > pageSize && (

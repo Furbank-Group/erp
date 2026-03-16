@@ -43,7 +43,8 @@ export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTab = (location.state as { returnTab?: ReturnTab })?.returnTab;
+  const returnState = location.state as { returnTab?: ReturnTab; scrollY?: number; currentPage?: number } | undefined;
+  const returnTab = returnState?.returnTab;
   const { user, permissions, role } = useAuth();
   const { setBackButton, setActionButton } = usePage();
   const [project, setProject] = useState<Project | null>(null);
@@ -149,7 +150,7 @@ export function TaskDetail() {
       <Button 
         variant="ghost" 
         size="icon"
-        onClick={() => navigate(tasksUrl)}
+        onClick={() => navigate(tasksUrl, { state: { scrollY: returnState?.scrollY, currentPage: returnState?.currentPage } })}
         className="h-10 w-10"
       >
         <ArrowLeft className="h-10 w-10" />
@@ -608,7 +609,7 @@ export function TaskDetail() {
         setDeleting(false);
         return;
       }
-      navigate(returnTab ? `/tasks${tabToQuery(returnTab)}` : '/tasks');
+      navigate(tasksUrl, { state: { scrollY: returnState?.scrollY, currentPage: returnState?.currentPage } });
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setDeleting(false);
@@ -696,7 +697,7 @@ export function TaskDetail() {
     return (
       <div className="text-center py-8">
         <p className="text-muted-foreground mb-4">Task not found</p>
-        <Button onClick={() => navigate(returnTab ? `/tasks${tabToQuery(returnTab)}` : '/tasks')}>Back to Tasks</Button>
+        <Button onClick={() => navigate(tasksUrl, { state: { scrollY: returnState?.scrollY, currentPage: returnState?.currentPage } })}>Back to Tasks</Button>
       </div>
     );
   }
