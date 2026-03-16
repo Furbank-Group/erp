@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePage } from '@/contexts/PageContext';
 import { supabase } from '@/lib/supabase/client';
@@ -29,9 +29,21 @@ import { getEditRequests } from '@/lib/services/taskEditRequestService';
 import { softDeleteTask } from '@/lib/services/taskDeletionService';
 import type { TaskEditRequest } from '@/lib/supabase/types';
 
+type ReturnTab = 'all' | 'todo' | 'work-in-progress' | 'done' | 'closed';
+const tabToQuery = (tab: ReturnTab): string => {
+  if (tab === 'all') return '';
+  if (tab === 'todo') return '?task_status=ToDo';
+  if (tab === 'work-in-progress') return '?task_status=Work-In-Progress';
+  if (tab === 'done') return '?task_status=Done';
+  if (tab === 'closed') return '?task_status=Closed';
+  return '';
+};
+
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTab = (location.state as { returnTab?: ReturnTab })?.returnTab;
   const { user, permissions, role } = useAuth();
   const { setBackButton, setActionButton } = usePage();
   const [project, setProject] = useState<Project | null>(null);
@@ -131,12 +143,13 @@ export function TaskDetail() {
   }, [id]);
 
   // Set back button in top nav
+  const tasksUrl = returnTab ? `/tasks${tabToQuery(returnTab)}` : '/tasks';
   useEffect(() => {
     setBackButton(
       <Button 
         variant="ghost" 
         size="icon"
-        onClick={() => navigate('/tasks')}
+        onClick={() => navigate(tasksUrl)}
         className="h-10 w-10"
       >
         <ArrowLeft className="h-10 w-10" />
@@ -145,7 +158,7 @@ export function TaskDetail() {
     return () => {
       setBackButton(null);
     };
-  }, [navigate, setBackButton]);
+  }, [navigate, setBackButton, tasksUrl]);
   
   // Use real-time hooks for comments, notes, and files
   const { comments, loading: commentsLoading } = useRealtimeTaskComments(id ?? '');
@@ -497,6 +510,18 @@ export function TaskDetail() {
   const handleApprove = async () => {
     if (!id || !user) return;
 
+    const currentStatus = task ? ((task as any).task_status ?? task.status) : null;
+    if (currentStatus !== TaskLifecycleStatus.DONE) {
+      alert('This task is no longer in Done (Pending Review). Refreshing.');
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
+      return;
+    }
+
     try {
       setLoadingReview(true);
       const { error } = await approveTask(id, user.id, reviewComment || undefined);
@@ -506,7 +531,13 @@ export function TaskDetail() {
       alert('Task approved successfully');
     } catch (error) {
       console.error('Error approving task:', error);
-      alert('Failed to approve task');
+      alert(`Failed to approve task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
     } finally {
       setLoadingReview(false);
     }
@@ -577,12 +608,12 @@ export function TaskDetail() {
         setDeleting(false);
         return;
       }
-      navigate('/tasks');
+      navigate(returnTab ? `/tasks${tabToQuery(returnTab)}` : '/tasks');
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setDeleting(false);
     }
-  }, [task, user, navigate]);
+  }, [task, user, navigate, returnTab]);
 
   // Set action buttons in top nav
   useEffect(() => {
@@ -665,7 +696,7 @@ export function TaskDetail() {
     return (
       <div className="text-center py-8">
         <p className="text-muted-foreground mb-4">Task not found</p>
-        <Button onClick={() => navigate('/tasks')}>Back to Tasks</Button>
+        <Button onClick={() => navigate(returnTab ? `/tasks${tabToQuery(returnTab)}` : '/tasks')}>Back to Tasks</Button>
       </div>
     );
   }

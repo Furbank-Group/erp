@@ -35,7 +35,7 @@ const getUserInitials = (user: UserWithRole | null | undefined): string => {
 };
 
 // Memoized task list item component
-const TaskListItem = memo(({ task, searchQuery }: { task: TaskWithRelations; searchQuery?: string }) => {
+const TaskListItem = memo(({ task, searchQuery, returnTab }: { task: TaskWithRelations; searchQuery?: string; returnTab?: 'all' | 'todo' | 'work-in-progress' | 'done' | 'closed' }) => {
   const priorityDisplay = getPriorityDisplay(task.priority);
   const statusDisplay = getTaskStatusDisplay(
     (task as any).task_status, // Use canonical task_status field
@@ -57,13 +57,13 @@ const TaskListItem = memo(({ task, searchQuery }: { task: TaskWithRelations; sea
   return (
     <Link
       key={task.id}
-      to={`/tasks/${task.id}`}
+      to={{ pathname: `/tasks/${task.id}`, state: returnTab != null ? { returnTab } : undefined }}
       className="block"
     >
       <Card
         className={`transition-all duration-200 border-l-4 ${priorityDisplay.borderColor} group w-full ${
           taskIsClosed || isArchived
-            ? 'bg-gray-50 opacity-75 cursor-not-allowed' 
+            ? 'bg-gray-50 dark:bg-gray-900 dark:border-gray-700 opacity-75 cursor-not-allowed'
             : 'hover:shadow-lg sm:hover:scale-[1.02] cursor-pointer'
         }`}
       >
@@ -152,6 +152,19 @@ const TaskListItem = memo(({ task, searchQuery }: { task: TaskWithRelations; sea
 });
 
 TaskListItem.displayName = 'TaskListItem';
+
+type TabId = 'all' | 'todo' | 'work-in-progress' | 'done' | 'closed';
+
+function getSearchParamsForTab(tab: TabId): Record<string, string> {
+  if (tab === 'all') return {};
+  const taskStatusMap: Record<Exclude<TabId, 'all'>, string> = {
+    todo: 'ToDo',
+    'work-in-progress': 'Work-In-Progress',
+    done: 'Done',
+    closed: 'Closed',
+  };
+  return { task_status: taskStatusMap[tab] };
+}
 
 export function Tasks() {
   const { permissions } = useAuth();
@@ -534,7 +547,7 @@ export function Tasks() {
           onChange={(e) => {
             const tab = e.target.value as typeof activeTab;
             setActiveTab(tab);
-            setSearchParams({});
+            setSearchParams(tab === 'all' ? {} : { task_status: tab === 'todo' ? 'ToDo' : tab === 'work-in-progress' ? 'Work-In-Progress' : tab === 'done' ? 'Done' : 'Closed' });
             setCurrentPage(1);
           }}
           className="w-full min-h-[44px]"
@@ -566,7 +579,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('todo');
-            setSearchParams({});
+            setSearchParams({ task_status: 'ToDo' });
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -580,7 +593,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('work-in-progress');
-            setSearchParams({});
+            setSearchParams({ task_status: 'Work-In-Progress' });
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -594,7 +607,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('done');
-            setSearchParams({});
+            setSearchParams({ task_status: 'Done' });
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -608,7 +621,7 @@ export function Tasks() {
         <button
           onClick={() => {
             setActiveTab('closed');
-            setSearchParams({});
+            setSearchParams({ task_status: 'Closed' });
             setCurrentPage(1);
           }}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -769,7 +782,7 @@ export function Tasks() {
             {tasks
               .slice((currentPage - 1) * pageSize, currentPage * pageSize)
               .map((task) => (
-                <TaskListItem key={task.id} task={task} searchQuery={debouncedSearchQuery} />
+                <TaskListItem key={task.id} task={task} searchQuery={debouncedSearchQuery} returnTab={activeTab} />
               ))}
           </div>
           {tasks.length > pageSize && (
