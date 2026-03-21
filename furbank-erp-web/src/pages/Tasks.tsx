@@ -40,7 +40,8 @@ const TaskListItem = memo(({ task, searchQuery, onNavigateToTask }: { task: Task
   const statusDisplay = getTaskStatusDisplay(
     (task as any).task_status, // Use canonical task_status field
     task.status, // Pass legacy status as fallback
-    (task as any).archived_at
+    (task as any).archived_at,
+    (task as any).closed_reason
   );
   const dueDateDisplay = getDueDateDisplay(task.due_date);
   const PriorityIcon = priorityDisplay.icon;

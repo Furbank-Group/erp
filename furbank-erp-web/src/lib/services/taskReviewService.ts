@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase/client';
 import { TaskReviewStatus } from '@/lib/supabase/types';
-import { approveAndArchiveTask, rejectReviewAndReopen } from './taskArchiveService';
+import { approveAndArchiveTask, rejectReviewAndReopen, failAndCloseTask } from './taskArchiveService';
 
 /**
  * Task Review Service
@@ -73,6 +73,18 @@ export async function requestChanges(
 ): Promise<{ error: Error | null }> {
   // Use the new reject and reopen function
   return rejectReviewAndReopen(taskId, userId, comments);
+}
+
+/**
+ * Fail a task and close it
+ * This closes the task but marks it as failed (not approved)
+ */
+export async function failTask(
+  taskId: string,
+  userId: string,
+  comments: string
+): Promise<{ error: Error | null }> {
+  return failAndCloseTask(taskId, userId, comments);
 }
 
 /**

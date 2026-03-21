@@ -5,7 +5,7 @@ import { usePage } from '@/contexts/PageContext';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, Project, UserWithRole } from '@/lib/supabase/types';
 import { TaskLifecycleStatus, UserRole } from '@/lib/supabase/types';
-import { approveTask, requestChanges } from '@/lib/services/taskReviewService';
+import { approveTask, requestChanges, failTask } from '@/lib/services/taskReviewService';
 import { unarchiveTask, markTaskDonePendingReview } from '@/lib/services/taskArchiveService';
 import { startWorkOnTask } from '@/lib/services/taskProgressService';
 import { useRealtimeTaskComments } from '@/hooks/useRealtimeTaskComments';
@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit, ArrowLeft, Play } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, MessageSquare, Trash2, Archive, FileText, Image, File, Download, Edit, ArrowLeft, Play, AlertTriangle } from 'lucide-react';
 import { getPriorityDisplay, getTaskStatusDisplay, getDueDateDisplay } from '@/lib/utils/taskDisplay';
 import { Skeleton, SkeletonCard } from '@/components/skeletons';
 import { EditRequestButton } from '@/components/tasks/EditRequestButton';
@@ -577,6 +577,55 @@ export function TaskDetail() {
     }
   };
 
+  const handleFailAndClose = async () => {
+    if (!id || !user || !reviewComment.trim()) {
+      alert('Please provide comments explaining why the task failed');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to fail and close this task? This marks the task as failed and closes it.')) {
+      return;
+    }
+
+    const currentStatus = task ? ((task as any).task_status ?? task.status) : null;
+    if (currentStatus !== TaskLifecycleStatus.DONE) {
+      alert('This task is no longer in Done (Pending Review). Refreshing.');
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
+      return;
+    }
+
+    try {
+      setLoadingReview(true);
+      const { error } = await failTask(id, user.id, reviewComment);
+      if (error) throw error;
+      setReviewComment('');
+      // Force refetch to immediately reflect the Closed status
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
+      alert('Task failed and closed successfully');
+    } catch (error) {
+      console.error('Error failing task:', error);
+      alert(`Failed to fail and close task: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
+    } finally {
+      setLoadingReview(false);
+    }
+  };
+
   const renderDueDateDisplay = () => {
     if (!task?.due_date) {
       return <p className="text-sm text-muted-foreground">No due date set</p>;
@@ -742,11 +791,13 @@ export function TaskDetail() {
         const statusDisplay = getTaskStatusDisplay(
           (task as any).task_status,
           task.status,
-          (task as any).archived_at
+          (task as any).archived_at,
+          (task as any).closed_reason
         );
         const StatusIcon = statusDisplay.icon;
         return (
           <Card className={`border-2 ${
+            taskIsClosed && (task as any).closed_reason === 'failed' ? 'border-amber-400 bg-amber-50 dark:bg-amber-950' :
             taskIsClosed ? 'border-gray-400 bg-gray-50 dark:bg-gray-900' :
             taskIsDone ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950' :
             taskIsWorkInProgress ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' :
@@ -755,6 +806,7 @@ export function TaskDetail() {
           <CardContent className="pt-6">
               <div className="flex items-start gap-3">
                 <StatusIcon className={`h-6 w-6 mt-0.5 ${
+                  taskIsClosed && (task as any).closed_reason === 'failed' ? 'text-amber-600 dark:text-amber-400' :
                   taskIsClosed ? 'text-gray-600 dark:text-gray-400' :
                   taskIsDone ? 'text-yellow-600 dark:text-yellow-400' :
                   taskIsWorkInProgress ? 'text-blue-600 dark:text-blue-400' :
@@ -1182,7 +1234,8 @@ export function TaskDetail() {
                   const statusDisplay = getTaskStatusDisplay(
                     (task as any).task_status,
                     task.status,
-                    (task as any).archived_at
+                    (task as any).archived_at,
+                    (task as any).closed_reason
                   );
                     const StatusIcon = statusDisplay.icon;
                     return (
@@ -1255,9 +1308,15 @@ export function TaskDetail() {
               )}
 
               {taskIsClosed && reviewedBy && task.reviewed_at && (
-                <div className="space-y-2 text-sm p-3 bg-muted rounded-md">
+                <div className={`space-y-2 text-sm p-3 rounded-md ${
+                  (task as any).closed_reason === 'failed'
+                    ? 'bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800'
+                    : 'bg-muted'
+                }`}>
                     <div>
-                    <span className="text-muted-foreground">Approved by: </span>
+                    <span className="text-muted-foreground">
+                      {(task as any).closed_reason === 'failed' ? 'Failed by: ' : 'Approved by: '}
+                    </span>
                       <span className="font-medium">{reviewedBy.full_name ?? reviewedBy.email}</span>
                       <span className="text-muted-foreground ml-2">
                         ({new Date(task.reviewed_at).toLocaleString()})
@@ -1315,7 +1374,7 @@ export function TaskDetail() {
                   <Textarea
                     value={reviewComment}
                     onChange={(e) => setReviewComment(e.target.value)}
-                    placeholder="Add review comments (optional for approval, required for rejection)..."
+                    placeholder="Add review comments (optional for approval, required for rejection/failure)..."
                     rows={3}
                   />
                   <div className="flex flex-col sm:flex-row gap-2">
@@ -1327,6 +1386,14 @@ export function TaskDetail() {
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       Approve & Close
+                    </Button>
+                    <Button
+                      onClick={handleFailAndClose}
+                      disabled={loadingReview || !reviewComment.trim()}
+                      className="flex-1 min-h-[44px] w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Fail & Close
                     </Button>
                     <Button
                       onClick={handleRequestChanges}

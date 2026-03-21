@@ -473,7 +473,12 @@ export function ProjectDetail() {
               ) : (
                 <div className="space-y-2">
                   {tasks.map((task, index) => {
-                    const taskStatusDisplay = getTaskStatusDisplay(task.status);
+                    const taskStatusDisplay = getTaskStatusDisplay(
+                      (task as any).task_status,
+                      task.status,
+                      (task as any).archived_at,
+                      (task as any).closed_reason
+                    );
                     const priorityDisplay = getPriorityDisplay(task.priority);
                     const TaskStatusIcon = taskStatusDisplay.icon;
                     const PriorityIcon = priorityDisplay.icon;

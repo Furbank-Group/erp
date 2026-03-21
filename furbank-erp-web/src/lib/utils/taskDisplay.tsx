@@ -12,6 +12,7 @@ import {
   CalendarCheck,
   CalendarX,
   FileCheck,
+  XOctagon,
   type LucideIcon
 } from 'lucide-react';
 
@@ -76,11 +77,13 @@ export interface StatusDisplay {
  * @param taskStatus - Canonical task lifecycle status (task_status field)
  * @param legacyStatus - Legacy status field (for backward compatibility)
  * @param archivedAt - Task archived timestamp (optional, for backward compatibility)
+ * @param closedReason - Reason for closure: 'manual', 'project_closed', or 'failed'
  */
 export function getTaskStatusDisplay(
   taskStatus?: string | null,
   legacyStatus?: string | null,
-  archivedAt?: string | null
+  archivedAt?: string | null,
+  closedReason?: string | null
 ): StatusDisplay {
   // Use canonical task_status if available, otherwise fall back to legacy status
   const status = taskStatus ?? legacyStatus ?? 'ToDo';
@@ -112,6 +115,16 @@ export function getTaskStatusDisplay(
         description: 'Work completed - Awaiting review approval',
       };
     case TaskLifecycleStatus.CLOSED:
+      // Distinguish between approved closure and failed closure
+      if (closedReason === 'failed') {
+        return {
+          label: 'Failed (Closed)',
+          color: 'text-amber-700',
+          bgColor: 'bg-amber-100',
+          icon: XOctagon,
+          description: 'Review failed - Task is closed and read-only',
+        };
+      }
       return {
         label: 'Closed (Complete)',
         color: 'text-gray-700',

@@ -155,3 +155,38 @@ export async function rejectReviewAndReopen(
     return { error: error as Error };
   }
 }
+
+/**
+ * Fail review and close task (Super Admin only)
+ * The task is closed but marked as failed rather than approved
+ */
+export async function failAndCloseTask(
+  taskId: string,
+  userId: string,
+  comments: string
+): Promise<{ error: Error | null }> {
+  try {
+    if (!comments || comments.trim().length === 0) {
+      return { error: new Error('Comments are required when failing a task') };
+    }
+
+    // @ts-expect-error - Supabase type inference issue with strict TypeScript
+    const { data, error } = await supabase.rpc('fail_and_close_task', {
+      p_task_id: taskId,
+      p_user_id: userId,
+      p_comments: comments,
+    }) as { data: { success: boolean; error?: string } | null; error: Error | null };
+
+    if (error) {
+      return { error: error as Error };
+    }
+
+    if (data && !data.success) {
+      return { error: new Error(data.error ?? 'Failed to fail and close task') };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
+}
