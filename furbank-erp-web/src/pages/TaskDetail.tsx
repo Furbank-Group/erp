@@ -528,7 +528,13 @@ export function TaskDetail() {
       const { error } = await approveTask(id, user.id, reviewComment || undefined);
       if (error) throw error;
       setReviewComment('');
-      // Task will update automatically via real-time subscription
+      // Force refetch to immediately reflect the Closed status
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
       alert('Task approved successfully');
     } catch (error) {
       console.error('Error approving task:', error);
@@ -555,7 +561,13 @@ export function TaskDetail() {
       const { error } = await requestChanges(id, user.id, reviewComment);
       if (error) throw error;
       setReviewComment('');
-      // Task will update automatically via real-time subscription
+      // Force refetch to immediately reflect the Work-In-Progress status
+      const { data } = await supabase
+        .from('tasks')
+        .select('*, projects!left (*)')
+        .eq('id', id)
+        .single();
+      if (data) setTask(data);
       alert('Changes requested');
     } catch (error) {
       console.error('Error requesting changes:', error);
