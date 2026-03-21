@@ -1377,33 +1377,35 @@ export function TaskDetail() {
                     placeholder="Add review comments (optional for approval, required for rejection/failure)..."
                     rows={3}
                   />
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="space-y-2">
                     <Button
                       onClick={handleApprove}
                       disabled={loadingReview}
                       variant="default"
-                      className="flex-1 min-h-[44px] w-full sm:w-auto"
+                      className="w-full min-h-[44px]"
                     >
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       Approve & Close
                     </Button>
-                    <Button
-                      onClick={handleFailAndClose}
-                      disabled={loadingReview || !reviewComment.trim()}
-                      className="flex-1 min-h-[44px] w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white"
-                    >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Fail & Close
-                    </Button>
-                    <Button
-                      onClick={handleRequestChanges}
-                      disabled={loadingReview || !reviewComment.trim()}
-                      variant="destructive"
-                      className="flex-1 min-h-[44px] w-full sm:w-auto"
-                    >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Reject & Reopen
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={handleFailAndClose}
+                        disabled={loadingReview || !reviewComment.trim()}
+                        className="flex-1 min-h-[44px] w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Fail & Close
+                      </Button>
+                      <Button
+                        onClick={handleRequestChanges}
+                        disabled={loadingReview || !reviewComment.trim()}
+                        variant="destructive"
+                        className="flex-1 min-h-[44px] w-full sm:w-auto"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject & Reopen
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
