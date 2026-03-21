@@ -227,17 +227,7 @@ export function Tasks() {
     }
   }, [location.state]);
 
-  useEffect(() => {
-    const s = location.state as { scrollY?: number; currentPage?: number } | undefined;
-    if (s?.scrollY != null && s.scrollY > 0) {
-      const main = document.querySelector('main');
-      if (main) {
-        requestAnimationFrame(() => {
-          main.scrollTop = s.scrollY!;
-        });
-      }
-    }
-  }, [location.state]);
+
 
   // Debounce search input
   useEffect(() => {
@@ -281,6 +271,24 @@ export function Tasks() {
 
   // Use real-time tasks hook (without search query to avoid re-fetching)
   const { tasks: allTasks, loading } = useRealtimeTasks(taskFilters);
+
+  // Restore scroll position when returning from task detail
+  // Must be after `loading` is declared so we can wait for tasks to render
+  useEffect(() => {
+    const s = location.state as { scrollY?: number; currentPage?: number } | undefined;
+    if (s?.scrollY != null && s.scrollY > 0 && !loading) {
+      const main = document.querySelector('main');
+      if (main) {
+        // Use a short timeout to ensure the task list has fully rendered in the DOM
+        const timer = setTimeout(() => {
+          requestAnimationFrame(() => {
+            main.scrollTop = s.scrollY!;
+          });
+        }, 50);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [location.state, loading]);
 
   // Apply client-side search filtering
   const tasks = useMemo(() => {
