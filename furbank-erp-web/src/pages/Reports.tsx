@@ -453,6 +453,7 @@ export function Reports() {
         <div 
           className="absolute z-[-1] opacity-0 pointer-events-none w-[1000px] left-[-9999px]" 
           aria-hidden="true"
+          data-pdf-export="true"
         >
           <div ref={printContainerRef} className="p-8 bg-background min-h-screen">
             {printMountMode === 'user_performance' && selectedUserId && (
