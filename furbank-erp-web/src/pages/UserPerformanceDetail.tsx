@@ -505,15 +505,27 @@ export function UserPerformanceDetail() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Tasks Completed</CardTitle>
+            <CardTitle className="text-base">Successfully Completed</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600 dark:text-green-400">
               {taskCounts.total_completed}
             </div>
             <div className="text-sm text-muted-foreground mt-1">
-              {taskCounts.completion_rate.toFixed(1)}% completion rate
+              {taskCounts.completion_rate.toFixed(1)}% success rate
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Failed Tasks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+              {taskCounts.total_failed}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">Closed as failed</div>
           </CardContent>
         </Card>
 
@@ -689,12 +701,12 @@ export function UserPerformanceDetail() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
-              Review Metrics
+              Quality & Review Metrics
             </CardTitle>
-            <CardDescription>Task review approval statistics</CardDescription>
+            <CardDescription>Task approval and rejection statistics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <div className="text-sm font-medium">Reviewed Tasks</div>
                 <div className="text-2xl font-bold">{reviewMetrics.reviewed_count}</div>
@@ -706,6 +718,13 @@ export function UserPerformanceDetail() {
                   {reviewMetrics.approved_count}
                 </div>
                 <div className="text-xs text-muted-foreground">Tasks approved</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Rejected</div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                  {taskCounts.total_rejected}
+                </div>
+                <div className="text-xs text-muted-foreground">Times changes requested</div>
               </div>
               <div className="space-y-2">
                 <div className="text-sm font-medium">Approval Rate</div>

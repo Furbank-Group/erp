@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase/client';
 export interface UserTaskCounts {
   total_assigned: number;
   total_completed: number;
+  total_failed: number;
+  total_rejected: number;
   total_pending: number;
   total_in_progress: number;
   total_pending_review: number;
@@ -95,6 +97,8 @@ export async function getUserTaskCounts(
         data: {
           total_assigned: 0,
           total_completed: 0,
+          total_failed: 0,
+          total_rejected: 0,
           total_pending: 0,
           total_in_progress: 0,
           total_pending_review: 0,
