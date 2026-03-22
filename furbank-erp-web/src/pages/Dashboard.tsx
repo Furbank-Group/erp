@@ -17,7 +17,12 @@ import { ArrowRight, Archive } from 'lucide-react';
 import { getTaskStatusDisplay, getProjectStatusDisplay } from '@/lib/utils/taskDisplay';
 import { SkeletonDashboard } from '@/components/skeletons';
 
-export function Dashboard() {
+interface DashboardContentProps {
+  isPrintMode?: boolean;
+  onLoaded?: () => void;
+}
+
+export function DashboardContent({ isPrintMode = false, onLoaded }: DashboardContentProps) {
   const { user, role, permissions } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -105,11 +110,14 @@ export function Dashboard() {
         setError(err as Error);
       } finally {
         setLoading(false);
+        if (onLoaded) {
+          setTimeout(onLoaded, 500); // Give charts time to render
+        }
       }
     }
 
     fetchStats();
-  }, [user, role, navigate]);
+  }, [user, role, navigate, onLoaded]);
 
   // Recalculate metrics when tasks or projects change (debounced with longer delay)
   useEffect(() => {
@@ -222,9 +230,11 @@ export function Dashboard() {
       <section>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3 md:mb-4">
           <h2 className="text-base sm:text-lg md:text-xl font-semibold">Tasks</h2>
-          <Link to="/tasks" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
-            View all <ArrowRight className="h-3 w-3" />
-          </Link>
+          {!isPrintMode && (
+            <Link to="/tasks" className="text-xs md:text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 w-fit">
+              View all <ArrowRight className="h-3 w-3" />
+            </Link>
+          )}
         </div>
 
         {/* Task Metrics Summary - All clickable - Single column on mobile, full width */}
@@ -963,4 +973,8 @@ export function Dashboard() {
       )}
     </div>
   );
+}
+
+export function Dashboard() {
+  return <DashboardContent />;
 }

@@ -21,8 +21,13 @@ import { Link } from 'react-router-dom';
 import { Edit, Save, X, ArrowLeft, Trash2 } from 'lucide-react';
 import { Skeleton, SkeletonCard, SkeletonTaskCard } from '@/components/skeletons';
 
-export function ProjectDetail() {
-  const { id } = useParams<{ id: string }>();
+interface ProjectDetailContentProps {
+  projectId: string;
+  isPrintMode?: boolean;
+  onLoaded?: () => void;
+}
+
+export function ProjectDetailContent({ projectId, isPrintMode = false, onLoaded }: ProjectDetailContentProps) {
   const navigate = useNavigate();
   const { permissions, user } = useAuth();
   const { setBackButton, setActionButton } = usePage();
@@ -38,6 +43,8 @@ export function ProjectDetail() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const id = projectId;
+
   // Use real-time hooks
   const { projects: projectList, loading: projectsLoading } = useRealtimeProjects();
   const project = projectList.find((p) => p.id === id) ?? null;
@@ -51,10 +58,13 @@ export function ProjectDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchMembers();
-      fetchAssignedUsers();
+      fetchMembers().then(() => fetchAssignedUsers()).finally(() => {
+        if (onLoaded) {
+          setTimeout(onLoaded, 500); // Allow DOM to paint
+        }
+      });
     }
-  }, [id]);
+  }, [id, onLoaded]);
 
   useEffect(() => {
     if (project) {
@@ -68,6 +78,7 @@ export function ProjectDetail() {
 
   // Set back button in top nav
   useEffect(() => {
+    if (isPrintMode) return;
     setBackButton(
       <Button 
         variant="ghost" 
@@ -81,7 +92,7 @@ export function ProjectDetail() {
     return () => {
       setBackButton(null);
     };
-  }, [navigate, setBackButton]);
+  }, [navigate, setBackButton, isPrintMode]);
 
   const fetchMembers = async () => {
     if (!id) return;
@@ -199,7 +210,7 @@ export function ProjectDetail() {
 
   // Set edit button in top nav
   useEffect(() => {
-    if (!permissions.canEditProjects) {
+    if (isPrintMode || !permissions.canEditProjects) {
       setActionButton(null);
       return;
     }
@@ -222,7 +233,7 @@ export function ProjectDetail() {
     return () => {
       setActionButton(null);
     };
-  }, [isEditing, saving, permissions.canEditProjects, handleEdit, handleCancelEdit, setActionButton]);
+  }, [isEditing, saving, permissions.canEditProjects, handleEdit, handleCancelEdit, setActionButton, isPrintMode]);
 
   const handleSaveEdit = async () => {
     if (!project || !id) return;
@@ -630,4 +641,10 @@ export function ProjectDetail() {
       </div>
     </div>
   );
+}
+
+export function ProjectDetail() {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return null;
+  return <ProjectDetailContent projectId={id} />;
 }

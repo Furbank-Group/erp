@@ -44,8 +44,13 @@ ChartJS.register(
   Filler
 );
 
-export function UserPerformanceDetail() {
-  const { id } = useParams<{ id: string }>();
+interface UserPerformanceContentProps {
+  userId: string;
+  isPrintMode?: boolean;
+  onLoaded?: () => void;
+}
+
+export function UserPerformanceContent({ userId, isPrintMode = false, onLoaded }: UserPerformanceContentProps) {
   const navigate = useNavigate();
   const { permissions, appUser } = useAuth();
   const { setBackButton } = usePage();
@@ -60,6 +65,7 @@ export function UserPerformanceDetail() {
   const [percentile, setPercentile] = useState<number | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const id = userId;
 
   // Watch for DOM changes to dark class to avoid race conditions
   useEffect(() => {
@@ -271,8 +277,12 @@ export function UserPerformanceDetail() {
       setError(err instanceof Error ? err.message : 'Failed to load performance data');
     } finally {
       setLoading(false);
+      // Let parent know we've finished the initial load
+      if (onLoaded) {
+        setTimeout(onLoaded, 500); // Give ChartJS some time to animate/render
+      }
     }
-  }, [id, canView, permissions.canViewAllUsers]);
+  }, [id, canView, permissions.canViewAllUsers, onLoaded]);
 
   useEffect(() => {
     fetchPerformanceData();
@@ -323,6 +333,7 @@ export function UserPerformanceDetail() {
 
   // Set back button in top nav
   useEffect(() => {
+    if (isPrintMode) return;
     setBackButton(
       <Button 
         variant="ghost" 
@@ -336,7 +347,7 @@ export function UserPerformanceDetail() {
     return () => {
       setBackButton(null);
     };
-  }, [navigate, setBackButton]);
+  }, [navigate, setBackButton, isPrintMode]);
 
   if (!canView()) {
     return (
@@ -780,4 +791,10 @@ export function UserPerformanceDetail() {
       )}
     </div>
   );
+}
+
+export function UserPerformanceDetail() {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return null;
+  return <UserPerformanceContent userId={id} />;
 }

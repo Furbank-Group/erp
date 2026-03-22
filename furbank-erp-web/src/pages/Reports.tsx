@@ -7,9 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { downloadReport, type ReportType, type ReportParams } from '@/lib/services/reportService';
+import { generateDomToPdf } from '@/lib/services/domToPdf';
 import { supabase } from '@/lib/supabase/client';
 import { FileDown, Loader2, AlertCircle, CheckCircle2, User, Workflow, FolderKanban, Building2, Calendar, Filter } from 'lucide-react';
 import type { UserWithRole } from '@/lib/supabase/types';
+import { UserPerformanceContent } from '@/pages/UserPerformanceDetail';
+import { ProjectDetailContent } from '@/pages/ProjectDetail';
+import { DashboardContent } from '@/pages/Dashboard';
+import { useRef } from 'react';
 
 interface Project {
   id: string;
@@ -34,6 +39,10 @@ export function Reports() {
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  // Print Mount States
+  const [printMountMode, setPrintMountMode] = useState<ReportType | null>(null);
+  const printContainerRef = useRef<HTMLDivElement>(null);
 
   // Authorization check
   useEffect(() => {
@@ -123,6 +132,19 @@ export function Reports() {
     setSuccess(null);
 
     try {
+      if (
+        reportType === 'user_performance' ||
+        reportType === 'company_wide' ||
+        reportType === 'project'
+      ) {
+        // We only use DOM rendering for these three
+        // For task_lifecycle, we fallback to legacy pdf generator since we don't have a dedicated component yet,
+        // or we can route it to Company Wide which has the task lifecycle section
+        setPrintMountMode(reportType);
+        return; // handlePrintComponentLoaded will do the rest
+      }
+
+      // Legacy fallback
       const params: ReportParams = {
         reportType,
         ...(selectedUserId && { userId: selectedUserId }),
@@ -135,7 +157,6 @@ export function Reports() {
 
       if (result.success) {
         setSuccess('Report generated and downloaded successfully');
-        // Clear success message after 5 seconds
         setTimeout(() => setSuccess(null), 5000);
       } else {
         setError(result.error?.message ?? 'Failed to generate report');
@@ -143,7 +164,45 @@ export function Reports() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
+      if (
+        reportType !== 'user_performance' &&
+        reportType !== 'company_wide' &&
+        reportType !== 'project'
+      ) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handlePrintComponentLoaded = async () => {
+    try {
+      if (printContainerRef.current) {
+        const result = await generateDomToPdf(printContainerRef.current, {
+          filename: `${reportType}_report_${new Date().toISOString().split('T')[0]}.pdf`,
+        });
+
+        if (result.success) {
+          if (result.blob) {
+            const url = URL.createObjectURL(result.blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = result.filename ?? 'report.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }
+          setSuccess('Report generated and downloaded successfully');
+          setTimeout(() => setSuccess(null), 5000);
+        } else {
+          setError(result.error?.message ?? 'Failed to generate DOM report');
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
       setLoading(false);
+      setPrintMountMode(null);
     }
   };
 
@@ -388,6 +447,43 @@ export function Reports() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Hidden container for print components */}
+      {printMountMode && (
+        <div 
+          className="absolute z-[-1] opacity-0 pointer-events-none w-[1000px] left-[-9999px]" 
+          aria-hidden="true"
+        >
+          <div ref={printContainerRef} className="p-8 bg-background min-h-screen">
+            {printMountMode === 'user_performance' && selectedUserId && (
+              <UserPerformanceContent 
+                userId={selectedUserId} 
+                isPrintMode={true} 
+                onLoaded={handlePrintComponentLoaded} 
+              />
+            )}
+            {printMountMode === 'project' && selectedProjectId && (
+              <ProjectDetailContent 
+                projectId={selectedProjectId} 
+                isPrintMode={true} 
+                onLoaded={handlePrintComponentLoaded} 
+              />
+            )}
+            {printMountMode === 'company_wide' && (
+              <DashboardContent 
+                isPrintMode={true} 
+                onLoaded={handlePrintComponentLoaded} 
+              />
+            )}
+            {printMountMode === 'task_lifecycle' && (
+              <DashboardContent 
+                isPrintMode={true} 
+                onLoaded={handlePrintComponentLoaded} 
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
