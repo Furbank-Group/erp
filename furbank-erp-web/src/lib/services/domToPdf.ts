@@ -1,4 +1,4 @@
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 export interface GeneratePdfOptions {
@@ -18,15 +18,12 @@ export async function generateDomToPdf(
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    // Capture the element
-    const canvas = await html2canvas(element, {
-      scale: 2, // higher scale for better resolution
-      useCORS: true,
-      logging: false,
+    // Capture the element using html-to-image which respects modern CSS (like oklch)
+    const imgData = await toPng(element, {
+      pixelRatio: 2, // higher scale for better resolution
       backgroundColor: document.documentElement.classList.contains('dark') ? '#09090b' : '#ffffff', // match standard backgrounds
+      skipFonts: false,
     });
-
-    const imgData = canvas.toDataURL('image/png');
 
     // Calculate image dimensions to fit the PDF
     const imgProps = pdf.getImageProperties(imgData);
