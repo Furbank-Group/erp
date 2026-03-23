@@ -26,6 +26,10 @@ export interface UserWorkload {
   assigned_tasks: number;
   overdue_tasks: number;
   tasks_waiting_review: number;
+  approved_tasks: number;
+  failed_tasks: number;
+  rejected_tasks: number;
+  closed_tasks: number;
 }
 
 export interface TaskUrgencySummary {

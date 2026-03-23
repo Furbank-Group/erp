@@ -817,9 +817,6 @@ export function DashboardContent({ isPrintMode = false, onLoaded }: DashboardCon
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-sm truncate">{user.user_name}</h3>
-                          <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                            {user.user_role.replace('_', ' ')}
-                          </p>
                         </div>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -837,6 +834,22 @@ export function DashboardContent({ isPrintMode = false, onLoaded }: DashboardCon
                           <span className="text-sm text-muted-foreground">Awaiting Review</span>
                           <span className="font-medium">{user.tasks_waiting_review}</span>
                         </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Approved</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">{user.approved_tasks || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Failed</span>
+                          <span className="font-medium text-red-600 dark:text-red-400">{user.failed_tasks || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Rejected</span>
+                          <span className="font-medium text-orange-600 dark:text-orange-400">{user.rejected_tasks || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Closed</span>
+                          <span className="font-medium">{user.closed_tasks || 0}</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -848,10 +861,13 @@ export function DashboardContent({ isPrintMode = false, onLoaded }: DashboardCon
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Name</th>
-                      <th className="text-left p-2 sm:p-2.5 md:p-3 font-semibold hidden sm:table-cell text-xs sm:text-sm">Role</th>
                       <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Assigned</th>
                       <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Overdue</th>
                       <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Awaiting Review</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Approved</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Failed</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Rejected</th>
+                      <th className="text-right p-2 sm:p-2.5 md:p-3 font-semibold text-xs sm:text-sm">Closed</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -866,22 +882,17 @@ export function DashboardContent({ isPrintMode = false, onLoaded }: DashboardCon
                           }`}
                         >
                           <td className="p-2 sm:p-2.5 md:p-3 font-medium text-xs sm:text-sm">
-                            <div className="flex flex-col sm:hidden">
-                              <span className="truncate">{user.user_name}</span>
-                              <span className="text-xs text-muted-foreground capitalize mt-0.5">
-                                {user.user_role.replace('_', ' ')}
-                              </span>
-                            </div>
-                            <span className="hidden sm:inline truncate">{user.user_name}</span>
-                          </td>
-                          <td className="p-2 sm:p-2.5 md:p-3 text-muted-foreground capitalize hidden sm:table-cell text-xs sm:text-sm">
-                            {user.user_role.replace('_', ' ')}
+                            <span className="truncate">{user.user_name}</span>
                           </td>
                           <td className="p-2 sm:p-2.5 md:p-3 text-right font-medium text-xs sm:text-sm">{user.assigned_tasks}</td>
                           <td className={`p-2 sm:p-2.5 md:p-3 text-right font-semibold text-xs sm:text-sm ${hasOverdue ? 'text-red-700 dark:text-red-400' : ''}`}>
                             {user.overdue_tasks}
                           </td>
                           <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm">{user.tasks_waiting_review}</td>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm text-green-600 dark:text-green-400">{user.approved_tasks || 0}</td>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm text-red-600 dark:text-red-400">{user.failed_tasks || 0}</td>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm text-orange-600 dark:text-orange-400">{user.rejected_tasks || 0}</td>
+                          <td className="p-2 sm:p-2.5 md:p-3 text-right text-xs sm:text-sm">{user.closed_tasks || 0}</td>
                         </tr>
                       );
                     })}
