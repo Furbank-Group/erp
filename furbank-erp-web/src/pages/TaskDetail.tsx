@@ -1179,6 +1179,9 @@ export function TaskDetail() {
                               {(file.file_size / 1024).toFixed(1)} KB
                             </p>
                           )}
+                          <p className="text-xs text-muted-foreground mt-1" title={new Date(file.created_at).toLocaleString()}>
+                            {new Date(file.created_at).toLocaleString()}
+                          </p>
                         </div>
                       </a>
                     );
